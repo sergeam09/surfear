@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QR — Robot Arm AR</title>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #111;
+      color: white;
+      font-family: sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 28px;
+      padding: 24px;
+    }
+    h1 {
+      font-size: 1.2rem;
+      opacity: 0.6;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    #qr-canvas {
+      border-radius: 16px;
+      background: white;
+      padding: 16px;
+    }
+    .url-box {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #1e1e1e;
+      border-radius: 10px;
+      padding: 12px 16px;
+      max-width: 420px;
+      width: 100%;
+    }
+    .url-box span {
+      font-size: 0.78rem;
+      opacity: 0.6;
+      word-break: break-all;
+      flex: 1;
+    }
+    button {
+      background: none;
+      border: 1px solid rgba(255,255,255,0.2);
+      color: white;
+      border-radius: 8px;
+      padding: 6px 14px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.2s;
+    }
+    button:hover { background: rgba(255,255,255,0.1); }
+    #copy-feedback {
+      font-size: 0.75rem;
+      opacity: 0;
+      color: #4ade80;
+      transition: opacity 0.3s;
+      height: 16px;
+    }
+    #copy-feedback.show { opacity: 1; }
+    #download-btn {
+      background: white;
+      color: #111;
+      border: none;
+      border-radius: 10px;
+      padding: 12px 28px;
+      font-size: 0.9rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    #download-btn:hover { opacity: 0.85; }
+  </style>
+</head>
+<body>
+  <h1>Escanea para ver en AR</h1>
+
+  <canvas id="qr-canvas"></canvas>
+
+  <div class="url-box">
+    <span id="url-text"></span>
+    <button onclick="copyURL()">Copiar</button>
+  </div>
+  <div id="copy-feedback">Copiado</div>
+
+  <button id="download-btn" onclick="downloadQR()">Descargar QR</button>
+
+  <script>
+    const arURL = "https://sergeam09.github.io/surfear/";
+
+    document.getElementById("url-text").textContent = arURL;
+
+    QRCode.toCanvas(document.getElementById("qr-canvas"), arURL, {
+      width: 260,
+      margin: 2,
+      color: { dark: "#000000", light: "#ffffff" }
+    });
+
+    function copyURL() {
+      navigator.clipboard.writeText(arURL).then(() => {
+        const fb = document.getElementById("copy-feedback");
+        fb.classList.add("show");
+        setTimeout(() => fb.classList.remove("show"), 2000);
+      });
+    }
+
+    function downloadQR() {
+      const canvas = document.getElementById("qr-canvas");
+      const link = document.createElement("a");
+      link.download = "qr-robot-arm-ar.png";
+      link.href = canvas.toDataURL();
+      link.click();
+    }
+  </script>
+</body>
+</html>
