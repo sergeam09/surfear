@@ -1,1 +1,570 @@
-test
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — AR Projects</title>
+  <script src="qrcode.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0f0f0f;
+      color: #e0e0e0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+
+    .container {
+      max-width: 520px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    h1 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      opacity: 0.5;
+      text-transform: uppercase;
+    }
+
+    .card {
+      background: #1a1a1a;
+      border-radius: 14px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .card h2 {
+      font-size: 0.8rem;
+      opacity: 0.4;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    label {
+      font-size: 0.82rem;
+      opacity: 0.6;
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    input[type="text"],
+    input[type="password"] {
+      width: 100%;
+      background: #0f0f0f;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: white;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input[type="text"]:focus,
+    input[type="password"]:focus {
+      border-color: rgba(255,255,255,0.3);
+    }
+
+    .file-drop {
+      border: 1px dashed rgba(255,255,255,0.15);
+      border-radius: 10px;
+      padding: 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      position: relative;
+    }
+
+    .file-drop:hover, .file-drop.dragover {
+      border-color: rgba(255,255,255,0.4);
+      background: rgba(255,255,255,0.03);
+    }
+
+    .file-drop input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    .file-drop .label { font-size: 0.82rem; opacity: 0.5; }
+    .file-drop .filename {
+      font-size: 0.82rem;
+      color: #4ade80;
+      margin-top: 4px;
+      font-weight: 500;
+    }
+
+    .row { display: flex; gap: 12px; }
+    .row > div { flex: 1; }
+
+    .btn-primary {
+      background: white;
+      color: #111;
+      border: none;
+      border-radius: 10px;
+      padding: 14px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      width: 100%;
+      transition: opacity 0.2s;
+    }
+    .btn-primary:hover { opacity: 0.85; }
+    .btn-primary:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    .progress {
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .progress.show { display: flex; }
+
+    .progress-bar-wrap {
+      background: #0f0f0f;
+      border-radius: 100px;
+      height: 4px;
+      overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%;
+      background: white;
+      border-radius: 100px;
+      width: 0%;
+      transition: width 0.4s ease;
+    }
+    .progress-label {
+      font-size: 0.78rem;
+      opacity: 0.45;
+    }
+
+    .result {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      padding-top: 4px;
+    }
+    .result.show { display: flex; }
+
+    .result h2 {
+      font-size: 0.85rem;
+      opacity: 0.5;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    #qr-result {
+      background: white;
+      padding: 12px;
+      border-radius: 12px;
+    }
+
+    .url-box {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #0f0f0f;
+      border-radius: 10px;
+      padding: 10px 14px;
+      width: 100%;
+    }
+    .url-box span {
+      font-size: 0.78rem;
+      opacity: 0.55;
+      word-break: break-all;
+      flex: 1;
+    }
+    .btn-small {
+      background: none;
+      border: 1px solid rgba(255,255,255,0.2);
+      color: white;
+      border-radius: 7px;
+      padding: 5px 12px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .btn-small:hover { background: rgba(255,255,255,0.08); }
+
+    .copy-ok {
+      font-size: 0.75rem;
+      color: #4ade80;
+      opacity: 0;
+      transition: opacity 0.3s;
+      height: 14px;
+    }
+    .copy-ok.show { opacity: 1; }
+
+    .btn-download {
+      background: white;
+      color: #111;
+      border: none;
+      border-radius: 10px;
+      padding: 10px 24px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .btn-download:hover { opacity: 0.85; }
+
+    .btn-nuevo {
+      font-size: 0.8rem;
+      opacity: 0.35;
+      background: none;
+      border: none;
+      color: white;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+    .btn-nuevo:hover { opacity: 0.6; }
+
+    .token-row {
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+    }
+    .token-row > div:first-child { flex: 1; }
+    .btn-save-token {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.15);
+      color: white;
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-size: 0.82rem;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .btn-save-token:hover { background: rgba(255,255,255,0.18); }
+    .token-saved {
+      font-size: 0.72rem;
+      color: #4ade80;
+      opacity: 0;
+      transition: opacity 0.3s;
+      height: 12px;
+      margin-top: 4px;
+    }
+    .token-saved.show { opacity: 1; }
+
+    .error-msg {
+      font-size: 0.8rem;
+      color: #f87171;
+      display: none;
+      padding: 10px 14px;
+      background: rgba(248,113,113,0.08);
+      border-radius: 8px;
+    }
+    .error-msg.show { display: block; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>AR Projects — Admin</h1>
+
+    <!-- Token -->
+    <div class="card">
+      <h2>GitHub Token</h2>
+      <div>
+        <label>Personal Access Token</label>
+        <div class="token-row">
+          <div>
+            <input type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxx">
+          </div>
+          <button class="btn-save-token" onclick="saveToken()">Guardar</button>
+        </div>
+        <div class="token-saved" id="token-saved">Token guardado en este navegador</div>
+      </div>
+    </div>
+
+    <!-- Nuevo proyecto -->
+    <div class="card">
+      <h2>Nuevo Proyecto</h2>
+
+      <div>
+        <label>Nombre del proyecto</label>
+        <input type="text" id="project-name" placeholder="ej: robot-arm, escultura-01">
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Archivo GLB (Android)</label>
+          <div class="file-drop" id="drop-glb">
+            <input type="file" id="file-glb" accept=".glb" onchange="onFileSelect('glb', this)">
+            <div class="label">Arrastra o selecciona</div>
+            <div class="filename" id="name-glb"></div>
+          </div>
+        </div>
+        <div>
+          <label>Archivo USDZ (iOS)</label>
+          <div class="file-drop" id="drop-usdz">
+            <input type="file" id="file-usdz" accept=".usdz" onchange="onFileSelect('usdz', this)">
+            <div class="label">Arrastra o selecciona</div>
+            <div class="filename" id="name-usdz"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="error-msg" id="error-msg"></div>
+
+      <div class="progress" id="progress">
+        <div class="progress-label" id="progress-label">Subiendo archivos...</div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar" id="progress-bar"></div>
+        </div>
+      </div>
+
+      <button class="btn-primary" id="btn-publish" onclick="publicar()">Publicar proyecto</button>
+    </div>
+
+    <!-- Resultado -->
+    <div class="card result" id="result">
+      <h2>Proyecto publicado</h2>
+      <div id="qr-result"></div>
+      <div class="url-box">
+        <span id="result-url"></span>
+        <button class="btn-small" onclick="copyResult()">Copiar</button>
+      </div>
+      <div class="copy-ok" id="copy-ok">Copiado</div>
+      <button class="btn-download" onclick="downloadQR()">Descargar QR</button>
+      <button class="btn-nuevo" onclick="resetForm()">Publicar otro proyecto</button>
+    </div>
+
+  </div>
+
+  <script>
+    const GITHUB_USER = "sergeam09";
+    const GITHUB_REPO = "surfear";
+    const GITHUB_BRANCH = "main";
+
+    // Cargar token guardado
+    window.addEventListener('DOMContentLoaded', () => {
+      const saved = localStorage.getItem('gh_token');
+      if (saved) document.getElementById('gh-token').value = saved;
+    });
+
+    function saveToken() {
+      const t = document.getElementById('gh-token').value.trim();
+      if (!t) return;
+      localStorage.setItem('gh_token', t);
+      const el = document.getElementById('token-saved');
+      el.classList.add('show');
+      setTimeout(() => el.classList.remove('show'), 2500);
+    }
+
+    function onFileSelect(type, input) {
+      const file = input.files[0];
+      if (file) {
+        document.getElementById(`name-${type}`).textContent = file.name;
+      }
+    }
+
+    function setProgress(pct, label) {
+      document.getElementById('progress-bar').style.width = pct + '%';
+      document.getElementById('progress-label').textContent = label;
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('error-msg');
+      el.textContent = msg;
+      el.classList.add('show');
+    }
+
+    function hideError() {
+      document.getElementById('error-msg').classList.remove('show');
+    }
+
+    async function fileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const b64 = reader.result.split(',')[1];
+          resolve(b64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function uploadToGitHub(path, base64Content, token, existingSha = null) {
+      const body = {
+        message: `Add ${path}`,
+        content: base64Content,
+        branch: GITHUB_BRANCH,
+      };
+      if (existingSha) body.sha = existingSha;
+
+      const res = await fetch(
+        `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${path}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(body),
+        }
+      );
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || 'Error subiendo archivo');
+      }
+      return res.json();
+    }
+
+    async function getFileSha(path, token) {
+      const res = await fetch(
+        `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${path}`,
+        { headers: { 'Authorization': `Bearer ${token}` } }
+      );
+      if (res.status === 404) return null;
+      const data = await res.json();
+      return data.sha || null;
+    }
+
+    function generatePageHTML(glbName, usdzName, projectName) {
+      return btoa(`<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${projectName}</title>
+  <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js"><\/script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #111; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; font-family: sans-serif; color: white; }
+    h1 { font-size: 1.1rem; margin-bottom: 16px; opacity: 0.7; letter-spacing: 0.05em; }
+    model-viewer { width: 90vw; max-width: 480px; height: 70vh; background: #1a1a1a; border-radius: 16px; }
+    p { margin-top: 14px; font-size: 0.8rem; opacity: 0.4; }
+  </style>
+</head>
+<body>
+  <h1>${projectName}</h1>
+  <model-viewer
+    src="${glbName}"
+    ios-src="${usdzName}"
+    ar
+    ar-modes="scene-viewer quick-look"
+    auto-rotate
+    camera-controls
+    autoplay>
+  </model-viewer>
+  <p>Toca el ícono AR para verlo en tu espacio</p>
+</body>
+</html>`);
+    }
+
+    async function publicar() {
+      hideError();
+      const token = document.getElementById('gh-token').value.trim();
+      const projectName = document.getElementById('project-name').value.trim().toLowerCase().replace(/\s+/g, '-');
+      const glbFile = document.getElementById('file-glb').files[0];
+      const usdzFile = document.getElementById('file-usdz').files[0];
+
+      if (!token) return showError('Ingresa tu GitHub Token.');
+      if (!projectName) return showError('Ingresa un nombre para el proyecto.');
+      if (!glbFile) return showError('Selecciona el archivo GLB.');
+      if (!usdzFile) return showError('Selecciona el archivo USDZ.');
+
+      const btn = document.getElementById('btn-publish');
+      btn.disabled = true;
+      document.getElementById('progress').classList.add('show');
+
+      try {
+        const folder = `proyectos/${projectName}`;
+        const glbName = glbFile.name;
+        const usdzName = usdzFile.name;
+
+        setProgress(10, 'Preparando archivos...');
+        const [glbB64, usdzB64] = await Promise.all([
+          fileToBase64(glbFile),
+          fileToBase64(usdzFile),
+        ]);
+
+        setProgress(30, 'Subiendo GLB...');
+        const glbSha = await getFileSha(`${folder}/${glbName}`, token);
+        await uploadToGitHub(`${folder}/${glbName}`, glbB64, token, glbSha);
+
+        setProgress(55, 'Subiendo USDZ...');
+        const usdzSha = await getFileSha(`${folder}/${usdzName}`, token);
+        await uploadToGitHub(`${folder}/${usdzName}`, usdzB64, token, usdzSha);
+
+        setProgress(75, 'Generando página AR...');
+        const pageHTML = generatePageHTML(glbName, usdzName, projectName);
+        const indexSha = await getFileSha(`${folder}/index.html`, token);
+        await uploadToGitHub(`${folder}/index.html`, pageHTML, token, indexSha);
+
+        setProgress(100, '¡Listo!');
+
+        // Mostrar resultado
+        const arURL = `https://${GITHUB_USER}.github.io/${GITHUB_REPO}/${folder}/`;
+        setTimeout(() => mostrarResultado(arURL), 600);
+
+      } catch (err) {
+        showError('Error: ' + err.message);
+        btn.disabled = false;
+        document.getElementById('progress').classList.remove('show');
+      }
+    }
+
+    function mostrarResultado(url) {
+      document.getElementById('result-url').textContent = url;
+      document.getElementById('qr-result').innerHTML = '';
+
+      new QRCode(document.getElementById('qr-result'), {
+        text: url,
+        width: 220,
+        height: 220,
+        colorDark: '#000000',
+        colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.H
+      });
+
+      document.getElementById('result').classList.add('show');
+      document.getElementById('result').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function copyResult() {
+      const url = document.getElementById('result-url').textContent;
+      navigator.clipboard.writeText(url).then(() => {
+        const el = document.getElementById('copy-ok');
+        el.classList.add('show');
+        setTimeout(() => el.classList.remove('show'), 2000);
+      });
+    }
+
+    function downloadQR() {
+      const canvas = document.querySelector('#qr-result canvas');
+      if (canvas) {
+        const link = document.createElement('a');
+        link.download = 'qr-ar.png';
+        link.href = canvas.toDataURL();
+        link.click();
+      }
+    }
+
+    function resetForm() {
+      document.getElementById('project-name').value = '';
+      document.getElementById('file-glb').value = '';
+      document.getElementById('file-usdz').value = '';
+      document.getElementById('name-glb').textContent = '';
+      document.getElementById('name-usdz').textContent = '';
+      document.getElementById('progress').classList.remove('show');
+      document.getElementById('result').classList.remove('show');
+      document.getElementById('btn-publish').disabled = false;
+      setProgress(0, '');
+      hideError();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  </script>
+</body>
+</html>
