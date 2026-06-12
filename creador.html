@@ -316,7 +316,7 @@
           </div>
         </div>
         <div>
-          <label>Archivo USDZ (iOS)</label>
+          <label>Archivo USDZ (iOS) — opcional</label>
           <div class="file-drop">
             <input type="file" id="file-usdz" accept=".usdz" onchange="onFileSelect('usdz', this)">
             <div class="label">Arrastra o selecciona</div>
@@ -551,6 +551,8 @@
 
   // Generadores de páginas
   function generateWorldHTML(glbName, usdzName, projectName) {
+    const iosSrc = usdzName ? `ios-src="${usdzName}"` : '';
+    const arModes = usdzName ? `ar-modes="scene-viewer quick-look"` : `ar-modes="scene-viewer webxr"`;
     return strToBase64(`<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -570,9 +572,9 @@
   <h1>${projectName}</h1>
   <model-viewer
     src="${glbName}"
-    ios-src="${usdzName}"
+    ${iosSrc}
     ar
-    ar-modes="scene-viewer quick-look"
+    ${arModes}
     auto-rotate
     camera-controls
     autoplay>
@@ -659,19 +661,21 @@
         const glbFile = document.getElementById('file-glb').files[0];
         const usdzFile = document.getElementById('file-usdz').files[0];
         if (!glbFile) return showError('Selecciona el archivo GLB.');
-        if (!usdzFile) return showError('Selecciona el archivo USDZ.');
 
         setProgress(15, 'Preparando archivos...');
-        const [glbB64, usdzB64] = await Promise.all([fileToBase64(glbFile), fileToBase64(usdzFile)]);
+        const glbB64 = await fileToBase64(glbFile);
 
         setProgress(35, 'Subiendo GLB...');
         await uploadToGitHub(`${folder}/${glbFile.name}`, glbB64, token);
 
-        setProgress(60, 'Subiendo USDZ...');
-        await uploadToGitHub(`${folder}/${usdzFile.name}`, usdzB64, token);
+        if (usdzFile) {
+          setProgress(60, 'Subiendo USDZ...');
+          const usdzB64 = await fileToBase64(usdzFile);
+          await uploadToGitHub(`${folder}/${usdzFile.name}`, usdzB64, token);
+        }
 
         setProgress(80, 'Generando pagina AR...');
-        const pageHTML = generateWorldHTML(glbFile.name, usdzFile.name, projectName);
+        const pageHTML = generateWorldHTML(glbFile.name, usdzFile ? usdzFile.name : null, projectName);
         await uploadToGitHub(`${folder}/index.html`, pageHTML, token);
 
       } else {
