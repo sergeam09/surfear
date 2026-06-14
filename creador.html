@@ -734,14 +734,12 @@
     const entities = puntos.map((p, i) => {
       const modelName = modelos[p.modeloIdx].name;
       return `
-    <a-entity gps-entity-place="latitude: ${p.lat}; longitude: ${p.lng};">
-      <a-box color="#FF0000" opacity="0.8" scale="0.5 0.5 0.5" position="0 ${p.height + 1} 0"></a-box>
-      <a-entity
-        gltf-model="url(${modelName})"
-        position="0 ${p.height} 0"
-        scale="2 2 2"
-        animation-mixer>
-      </a-entity>
+    <a-entity
+      gps-entity-place="latitude: ${p.lat}; longitude: ${p.lng};"
+      gltf-model="url(${modelName})"
+      position="0 ${p.height} 0"
+      scale="1 1 1"
+      animation-mixer>
     </a-entity>`;
     }).join('\n');
 
@@ -833,6 +831,12 @@
   <div id="puntos-panel"></div>
   <div id="cerca-alert">Mira a tu alrededor</div>
 
+  <div id="gps-wait" style="position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:2000;display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;font-family:sans-serif;gap:16px;">
+    <div style="font-size:1rem;font-weight:600;">Calibrando GPS</div>
+    <div id="gps-wait-msg" style="font-size:0.82rem;opacity:0.6;text-align:center;padding:0 32px;">Esperando señal estable...<br>Sal a un espacio abierto si estás en interiores.</div>
+    <div id="gps-wait-acc" style="font-size:0.78rem;color:#facc15;">Precisión: —</div>
+  </div>
+
   <a-scene
     vr-mode-ui="enabled: false"
     arjs="sourceType: webcam; debugUIEnabled: false; trackingMethod: best;"
@@ -878,27 +882,45 @@ ${entities}
       panel.appendChild(card);
     });
 
-    // GPS nativo — independiente de AR.js
+    // GPS nativo con espera de señal estable
+    const GPS_PRECISION_OK = 20; // metros — espera hasta tener al menos 20m de precisión
+    let gpsListo = false;
+
     if (navigator.geolocation) {
       navigator.geolocation.watchPosition(
         pos => {
           userLat = pos.coords.latitude;
           userLng = pos.coords.longitude;
+          const acc = Math.round(pos.coords.accuracy);
+
+          const accEl = document.getElementById('gps-wait-acc');
+          if (accEl) accEl.textContent = 'Precision: ' + acc + 'm';
+
           const el = document.getElementById('gps-status');
-          el.textContent = 'GPS activo — ' + userLat.toFixed(5) + ', ' + userLng.toFixed(5);
+          el.textContent = 'GPS — ' + userLat.toFixed(5) + ', ' + userLng.toFixed(5) + ' (±' + acc + 'm)';
           el.classList.add('ok');
+
+          // Ocultar pantalla de espera cuando la precisión es suficiente
+          if (!gpsListo && acc <= GPS_PRECISION_OK) {
+            gpsListo = true;
+            const wait = document.getElementById('gps-wait');
+            if (wait) wait.style.display = 'none';
+          }
+
           actualizarIndicadores();
         },
         err => {
           const el = document.getElementById('gps-status');
-          const msgs = { 1: 'Permiso GPS denegado', 2: 'GPS no disponible', 3: 'Tiempo de espera GPS agotado' };
+          const msgs = { 1: 'Permiso GPS denegado', 2: 'GPS no disponible', 3: 'Tiempo de espera agotado' };
           el.textContent = msgs[err.code] || 'Error GPS';
           el.style.color = '#f87171';
+          const accEl = document.getElementById('gps-wait-acc');
+          if (accEl) accEl.textContent = msgs[err.code] || 'Error GPS';
         },
-        { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
       );
     } else {
-      document.getElementById('gps-status').textContent = 'GPS no soportado en este dispositivo';
+      document.getElementById('gps-status').textContent = 'GPS no soportado';
     }
 
     // Brújula
