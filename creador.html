@@ -390,7 +390,10 @@
       <!-- Mapa -->
       <button class="btn-location" onclick="usarMiUbicacion()">Centrar en mi ubicacion</button>
       <div>
-        <label>Mapa — toca para agregar un punto</label>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <label style="margin:0;">Mapa — toca para agregar un punto</label>
+          <button class="btn-small" id="btn-toggle-mapa" onclick="toggleMapa()" style="font-size:0.72rem;padding:4px 10px;">Satelite</button>
+        </div>
         <div id="map"></div>
         <div class="map-hint">Cada click agrega un nuevo punto de colocacion</div>
       </div>
@@ -549,13 +552,33 @@
   }
 
   // ── Mapa ──────────────────────────────────────────────────
+  let capaActual = null;
+  let modoSatelite = false;
+
+  const TILES = {
+    mapa: {
+      url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+      opts: { attribution: '© OpenStreetMap © CARTO', subdomains: 'abcd', maxZoom: 19 }
+    },
+    satelite: {
+      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      opts: { attribution: '© Esri', maxZoom: 19 }
+    }
+  };
+
   function initMap() {
     map = L.map('map').setView([19.4326, -99.1332], 15);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '© OpenStreetMap © CARTO',
-      subdomains: 'abcd', maxZoom: 19
-    }).addTo(map);
+    capaActual = L.tileLayer(TILES.mapa.url, TILES.mapa.opts).addTo(map);
     map.on('click', (e) => agregarPunto(e.latlng.lat, e.latlng.lng));
+  }
+
+  function toggleMapa() {
+    modoSatelite = !modoSatelite;
+    const modo = modoSatelite ? 'satelite' : 'mapa';
+    const btn = document.getElementById('btn-toggle-mapa');
+    btn.textContent = modoSatelite ? 'Mapa' : 'Satelite';
+    map.removeLayer(capaActual);
+    capaActual = L.tileLayer(TILES[modo].url, TILES[modo].opts).addTo(map);
   }
 
   function agregarPunto(lat, lng) {
@@ -789,17 +812,15 @@
 
     /* Flecha direccional */
     .flecha-wrap {
-      width: 40px; height: 40px; flex-shrink: 0;
+      width: 44px; height: 44px; flex-shrink: 0;
       display: flex; align-items: center; justify-content: center;
     }
     .flecha {
-      width: 0; height: 0;
-      border-left: 10px solid transparent;
-      border-right: 10px solid transparent;
-      border-bottom: 22px solid white;
       transition: transform 0.3s ease;
+      display: block;
     }
-    .punto-indicator.cerca .flecha { border-bottom-color: #4ade80; }
+    .punto-indicator.cerca .flecha .arrow-head { fill: #4ade80; }
+    .punto-indicator.cerca .flecha .arrow-stem { fill: #4ade80; }
 
     .punto-info { flex: 1; }
     .punto-nombre { font-size: 0.82rem; font-weight: 600; }
@@ -874,7 +895,7 @@ ${entities}
       card.className = 'punto-indicator';
       card.id = 'punto-' + i;
       card.innerHTML =
-        '<div class="flecha-wrap"><div class="flecha" id="flecha-' + i + '"></div></div>' +
+        '<div class="flecha-wrap"><svg id="flecha-' + i + '" class="flecha" width="36" height="44" viewBox="0 0 36 44" fill="none" xmlns="http://www.w3.org/2000/svg"><polygon class="arrow-head" points="18,0 36,20 24,20 24,44 12,44 12,20 0,20" fill="white"/></svg></div>' +
         '<div class="punto-info">' +
           '<div class="punto-nombre">Punto ' + (i+1) + (PUNTOS.length > 1 ? ' — ' + p.model.replace('.glb','') : '') + '</div>' +
           '<div class="punto-dist" id="dist-' + i + '">—</div>' +
