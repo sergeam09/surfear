@@ -268,6 +268,56 @@
     /* World tracking file section */
     .world-section { display: none; flex-direction: column; gap: 14px; }
     .world-section.show { display: flex; }
+
+    /* Puntos geo */
+    .punto-card {
+      background: #0f0f0f;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .punto-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      font-weight: 600;
+      opacity: 0.7;
+    }
+    .btn-delete {
+      background: none;
+      border: none;
+      color: #f87171;
+      font-size: 0.78rem;
+      cursor: pointer;
+      opacity: 0.6;
+    }
+    .btn-delete:hover { opacity: 1; }
+    select {
+      width: 100%;
+      background: #1a1a1a;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: white;
+      font-size: 0.85rem;
+      outline: none;
+    }
+    .modelo-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #0f0f0f;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 0.8rem;
+    }
+    .modelo-name { flex: 1; opacity: 0.6; }
+    .modelo-ok { color: #4ade80; font-size: 0.75rem; }
   </style>
 </head>
 <body>
@@ -306,54 +356,40 @@
 
     <!-- World Tracking -->
     <div class="world-section show" id="world-section">
-      <div class="row">
-        <div>
-          <label>Archivo GLB (Android)</label>
-          <div class="file-drop">
-            <input type="file" id="file-glb" accept=".glb" onchange="onFileSelect('glb', this)">
-            <div class="label">Arrastra o selecciona</div>
-            <div class="filename" id="name-glb"></div>
-          </div>
-        </div>
-        <div>
-          <label>Archivo USDZ (iOS) — opcional</label>
-          <div class="file-drop">
-            <input type="file" id="file-usdz" accept=".usdz" onchange="onFileSelect('usdz', this)">
-            <div class="label">Arrastra o selecciona</div>
-            <div class="filename" id="name-usdz"></div>
-          </div>
+      <div>
+        <label>Archivo GLB</label>
+        <div class="file-drop">
+          <input type="file" id="file-glb" accept=".glb" onchange="onFileSelect('glb', this)">
+          <div class="label">Arrastra o selecciona</div>
+          <div class="filename" id="name-glb"></div>
         </div>
       </div>
     </div>
 
     <!-- Geospatial -->
     <div class="geo-section" id="geo-section">
+
+      <!-- Pool de modelos -->
       <div>
-        <label>Archivo GLB</label>
-        <div class="file-drop">
-          <input type="file" id="file-glb-geo" accept=".glb" onchange="onFileSelect('glb-geo', this)">
-          <div class="label">Arrastra o selecciona</div>
-          <div class="filename" id="name-glb-geo"></div>
-        </div>
+        <label>Modelos GLB disponibles</label>
+        <div id="modelos-pool" style="display:flex;flex-direction:column;gap:8px;"></div>
+        <button class="btn-location" style="margin-top:8px;" onclick="agregarModelo()">+ Agregar modelo</button>
       </div>
 
-      <button class="btn-location" onclick="usarMiUbicacion()">Usar mi ubicacion actual</button>
-
+      <!-- Mapa -->
+      <button class="btn-location" onclick="usarMiUbicacion()">Centrar en mi ubicacion</button>
       <div>
-        <label>Selecciona la posicion en el mapa</label>
+        <label>Mapa — toca para agregar un punto</label>
         <div id="map"></div>
-        <div class="map-hint">Toca o haz click para colocar el marcador</div>
+        <div class="map-hint">Cada click agrega un nuevo punto de colocacion</div>
       </div>
 
-      <div class="coords-display" id="coords-display">Sin posicion seleccionada</div>
-
-      <div class="slider-wrap">
-        <label>Altura del modelo</label>
-        <div class="slider-row">
-          <input type="range" id="height-slider" min="-5" max="20" step="0.5" value="1.5" oninput="updateHeight(this.value)">
-          <span class="slider-val" id="height-val">1.5 m</span>
-        </div>
+      <!-- Lista de puntos -->
+      <div id="puntos-wrap" style="display:none;flex-direction:column;gap:10px;">
+        <label>Puntos colocados</label>
+        <div id="puntos-list" style="display:flex;flex-direction:column;gap:8px;"></div>
       </div>
+
     </div>
 
     <div class="error-msg" id="error-msg"></div>
@@ -388,12 +424,11 @@
   const GITHUB_REPO = "surfear";
   const GITHUB_BRANCH = "main";
 
-  let selectedLat = null;
-  let selectedLng = null;
-  let selectedHeight = 1.5;
   let tipoActual = 'world';
   let map = null;
-  let marker = null;
+  let geoModelos = [];   // {file, name}
+  let geoPuntos = [];    // {lat, lng, height, modeloIdx, marker, id}
+  let puntoIdCounter = 0;
 
   // Token
   window.addEventListener('DOMContentLoaded', () => {
@@ -423,70 +458,127 @@
     }
   }
 
-  // Mapa
-  function initMap() {
-    map = L.map('map').setView([19.4326, -99.1332], 15);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap',
-      maxZoom: 19
-    }).addTo(map);
+  // ── Modelos pool ──────────────────────────────────────────
+  function agregarModelo() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.glb';
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const idx = geoModelos.length;
+      geoModelos.push({ file, name: file.name });
+      renderModelosPool();
+      renderPuntoSelects();
+    };
+    input.click();
+  }
 
-    map.on('click', (e) => {
-      setMarker(e.latlng.lat, e.latlng.lng);
+  function renderModelosPool() {
+    const pool = document.getElementById('modelos-pool');
+    pool.innerHTML = '';
+    geoModelos.forEach((m, i) => {
+      const row = document.createElement('div');
+      row.className = 'modelo-row';
+      row.innerHTML = `<span class="modelo-name">${m.name}</span><span class="modelo-ok">GLB</span>`;
+      pool.appendChild(row);
     });
   }
 
-  function setMarker(lat, lng) {
-    selectedLat = lat;
-    selectedLng = lng;
-
-    if (marker) map.removeLayer(marker);
-    marker = L.marker([lat, lng]).addTo(map);
-
-    document.getElementById('coords-display').textContent =
-      `Lat: ${lat.toFixed(7)}   Lng: ${lng.toFixed(7)}`;
-
-    fetchElevacion(lat, lng);
+  function renderPuntoSelects() {
+    geoPuntos.forEach(p => {
+      const sel = document.getElementById(`sel-modelo-${p.id}`);
+      if (!sel) return;
+      const current = sel.value;
+      sel.innerHTML = geoModelos.map((m, i) =>
+        `<option value="${i}" ${i == current ? 'selected' : ''}>${m.name}</option>`
+      ).join('');
+    });
   }
 
-  function fetchElevacion(lat, lng) {
-    fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${lat},${lng}`)
-      .then(r => r.json())
-      .then(data => {
-        const elev = data.results[0].elevation;
-        document.getElementById('coords-display').textContent =
-          `Lat: ${lat.toFixed(7)}   Lng: ${lng.toFixed(7)}   Alt. terreno: ${elev}m`;
-      })
-      .catch(() => {});
+  // ── Mapa ──────────────────────────────────────────────────
+  function initMap() {
+    map = L.map('map').setView([19.4326, -99.1332], 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap', maxZoom: 19
+    }).addTo(map);
+    map.on('click', (e) => agregarPunto(e.latlng.lat, e.latlng.lng));
+  }
+
+  function agregarPunto(lat, lng) {
+    if (geoModelos.length === 0) {
+      showError('Agrega al menos un modelo GLB antes de colocar puntos.');
+      return;
+    }
+    const id = ++puntoIdCounter;
+    const num = geoPuntos.length + 1;
+    const markerIcon = L.divIcon({
+      html: `<div style="background:white;color:#111;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;box-shadow:0 2px 6px rgba(0,0,0,0.4)">${num}</div>`,
+      className: '', iconSize: [24, 24], iconAnchor: [12, 12]
+    });
+    const marker = L.marker([lat, lng], { icon: markerIcon }).addTo(map);
+    const punto = { id, lat, lng, height: 1.5, modeloIdx: 0, marker, num };
+    geoPuntos.push(punto);
+    renderPuntosList();
+    document.getElementById('puntos-wrap').style.display = 'flex';
+  }
+
+  function eliminarPunto(id) {
+    const idx = geoPuntos.findIndex(p => p.id === id);
+    if (idx === -1) return;
+    map.removeLayer(geoPuntos[idx].marker);
+    geoPuntos.splice(idx, 1);
+    // Renumerar marcadores
+    geoPuntos.forEach((p, i) => {
+      p.num = i + 1;
+      const icon = L.divIcon({
+        html: `<div style="background:white;color:#111;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;box-shadow:0 2px 6px rgba(0,0,0,0.4)">${p.num}</div>`,
+        className: '', iconSize: [24, 24], iconAnchor: [12, 12]
+      });
+      p.marker.setIcon(icon);
+    });
+    renderPuntosList();
+    if (geoPuntos.length === 0) document.getElementById('puntos-wrap').style.display = 'none';
+  }
+
+  function renderPuntosList() {
+    const list = document.getElementById('puntos-list');
+    list.innerHTML = '';
+    geoPuntos.forEach(p => {
+      const card = document.createElement('div');
+      card.className = 'punto-card';
+      card.innerHTML = `
+        <div class="punto-header">
+          <span>Punto ${p.num} — ${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</span>
+          <button class="btn-delete" onclick="eliminarPunto(${p.id})">Eliminar</button>
+        </div>
+        <div>
+          <label>Modelo</label>
+          <select id="sel-modelo-${p.id}" onchange="geoPuntos.find(x=>x.id==${p.id}).modeloIdx=parseInt(this.value)">
+            ${geoModelos.map((m, i) => `<option value="${i}">${m.name}</option>`).join('')}
+          </select>
+        </div>
+        <div class="slider-wrap">
+          <label>Altura</label>
+          <div class="slider-row">
+            <input type="range" min="-5" max="20" step="0.5" value="${p.height}"
+              oninput="geoPuntos.find(x=>x.id==${p.id}).height=parseFloat(this.value); document.getElementById('hval-${p.id}').textContent=this.value+' m'">
+            <span class="slider-val" id="hval-${p.id}">${p.height} m</span>
+          </div>
+        </div>`;
+      list.appendChild(card);
+    });
   }
 
   function usarMiUbicacion() {
     if (!navigator.geolocation) return showError('Tu navegador no soporta geolocalización.');
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        if (!map) {
-          initMap();
-          setTimeout(() => {
-            map.setView([lat, lng], 18);
-            setMarker(lat, lng);
-          }, 200);
-        } else {
-          map.setView([lat, lng], 18);
-          setMarker(lat, lng);
-        }
-      },
-      () => showError('No se pudo obtener la ubicación.')
-    );
+    navigator.geolocation.getCurrentPosition(pos => {
+      if (!map) { initMap(); setTimeout(() => map.setView([pos.coords.latitude, pos.coords.longitude], 18), 200); }
+      else map.setView([pos.coords.latitude, pos.coords.longitude], 18);
+    }, () => showError('No se pudo obtener la ubicación.'));
   }
 
-  function updateHeight(val) {
-    selectedHeight = parseFloat(val);
-    document.getElementById('height-val').textContent = val + ' m';
-  }
-
-  // Archivos
+  // Archivos world tracking
   function onFileSelect(type, input) {
     const file = input.files[0];
     if (file) document.getElementById(`name-${type}`).textContent = file.name;
@@ -550,9 +642,7 @@
   }
 
   // Generadores de páginas
-  function generateWorldHTML(glbName, usdzName, projectName) {
-    const iosSrc = usdzName ? `ios-src="${usdzName}"` : '';
-    const arModes = usdzName ? `ar-modes="scene-viewer quick-look"` : `ar-modes="scene-viewer webxr"`;
+  function generateWorldHTML(glbName, projectName) {
     return strToBase64(`<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -572,9 +662,8 @@
   <h1>${projectName}</h1>
   <model-viewer
     src="${glbName}"
-    ${iosSrc}
     ar
-    ${arModes}
+    ar-modes="webxr scene-viewer"
     auto-rotate
     camera-controls
     autoplay>
@@ -584,7 +673,18 @@
 </html>`);
   }
 
-  function generateGeoHTML(glbName, lat, lng, height, projectName) {
+  function generateGeoHTML(puntos, modelos, projectName) {
+    const entities = puntos.map(p => {
+      const modelName = modelos[p.modeloIdx].name;
+      return `    <a-entity
+      gps-new-entity-place="latitude: ${p.lat}; longitude: ${p.lng};"
+      gltf-model="url(${modelName})"
+      position="0 ${p.height} 0"
+      scale="1 1 1"
+      animation-mixer="loop: repeat; crossFadeDuration: 0.4">
+    </a-entity>`;
+    }).join('\n');
+
     return strToBase64(`<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -605,7 +705,7 @@
   </style>
 </head>
 <body>
-  <div id="info">${projectName} — Apunta hacia el lugar marcado</div>
+  <div id="info">${projectName} — ${puntos.length} punto${puntos.length > 1 ? 's' : ''} en el mapa</div>
   <a-scene
     vr-mode-ui="enabled: false"
     embedded
@@ -613,30 +713,13 @@
     renderer="logarithmicDepthBuffer: true; precision: medium;">
 
     <a-camera
-      gps-new-camera="minDistance: 1; maxDistance: 300; simulateAltitude: 0;"
+      gps-new-camera="minDistance: 1; maxDistance: 500; simulateAltitude: 0;"
       rotation-reader>
     </a-camera>
 
-    <a-entity
-      gps-new-entity-place="latitude: ${lat}; longitude: ${lng};"
-      gltf-model="url(${glbName})"
-      position="0 ${height} 0"
-      scale="1 1 1"
-      animation-mixer="loop: repeat; crossFadeDuration: 0.4"
-      look-at="[gps-new-camera]">
-    </a-entity>
+${entities}
 
   </a-scene>
-
-  <script>
-    window.addEventListener('gps-camera-update-position', (e) => {
-      const dist = e.detail.position ? Math.round(
-        window.AFRAME.utils.coordinates.distance
-          ? 0
-          : 0
-      ) : '?';
-    });
-  <\/script>
 </body>
 </html>`);
   }
@@ -675,22 +758,25 @@
         }
 
         setProgress(80, 'Generando pagina AR...');
-        const pageHTML = generateWorldHTML(glbFile.name, usdzFile ? usdzFile.name : null, projectName);
+        const pageHTML = generateWorldHTML(glbFile.name, projectName);
         await uploadToGitHub(`${folder}/index.html`, pageHTML, token);
 
       } else {
-        const glbFile = document.getElementById('file-glb-geo').files[0];
-        if (!glbFile) return showError('Selecciona el archivo GLB.');
-        if (!selectedLat || !selectedLng) return showError('Selecciona una posicion en el mapa.');
+        if (geoModelos.length === 0) return showError('Agrega al menos un modelo GLB.');
+        if (geoPuntos.length === 0) return showError('Coloca al menos un punto en el mapa.');
 
-        setProgress(20, 'Preparando archivo...');
-        const glbB64 = await fileToBase64(glbFile);
-
-        setProgress(50, 'Subiendo GLB...');
-        await uploadToGitHub(`${folder}/${glbFile.name}`, glbB64, token);
+        // Subir modelos únicos
+        const modelosUnicos = [...new Set(geoPuntos.map(p => p.modeloIdx))];
+        const total = modelosUnicos.length;
+        for (let i = 0; i < modelosUnicos.length; i++) {
+          const m = geoModelos[modelosUnicos[i]];
+          setProgress(10 + (i / total) * 60, `Subiendo ${m.name}...`);
+          const b64 = await fileToBase64(m.file);
+          await uploadToGitHub(`${folder}/${m.name}`, b64, token);
+        }
 
         setProgress(80, 'Generando pagina AR...');
-        const pageHTML = generateGeoHTML(glbFile.name, selectedLat, selectedLng, selectedHeight, projectName);
+        const pageHTML = generateGeoHTML(geoPuntos, geoModelos, projectName);
         await uploadToGitHub(`${folder}/index.html`, pageHTML, token);
       }
 
@@ -743,19 +829,21 @@
     document.getElementById('project-name').value = '';
     document.getElementById('file-glb').value = '';
     document.getElementById('file-usdz').value = '';
-    document.getElementById('file-glb-geo').value = '';
+
     document.getElementById('name-glb').textContent = '';
     document.getElementById('name-usdz').textContent = '';
-    document.getElementById('name-glb-geo').textContent = '';
     document.getElementById('progress').classList.remove('show');
     document.getElementById('result').classList.remove('show');
     document.getElementById('btn-publish').disabled = false;
     setProgress(0, '');
     hideError();
-    selectedLat = null;
-    selectedLng = null;
-    if (marker) { map.removeLayer(marker); marker = null; }
-    document.getElementById('coords-display').textContent = 'Sin posicion seleccionada';
+    geoPuntos.forEach(p => map && map.removeLayer(p.marker));
+    geoPuntos = [];
+    geoModelos = [];
+    puntoIdCounter = 0;
+    document.getElementById('modelos-pool').innerHTML = '';
+    document.getElementById('puntos-list').innerHTML = '';
+    document.getElementById('puntos-wrap').style.display = 'none';
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 </script>
