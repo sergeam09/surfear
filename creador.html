@@ -727,14 +727,21 @@
   }
 
   function generateGeoHTML(puntos, modelos, projectName) {
-    const entities = puntos.map(p => {
+    const puntosJSON = JSON.stringify(puntos.map(p => ({
+      lat: p.lat, lng: p.lng, height: p.height, model: modelos[p.modeloIdx].name
+    })));
+
+    const entities = puntos.map((p, i) => {
       const modelName = modelos[p.modeloIdx].name;
-      return `    <a-entity
-      gps-entity-place="latitude: ${p.lat}; longitude: ${p.lng};"
-      gltf-model="url(${modelName})"
-      position="0 ${p.height} 0"
-      scale="1 1 1"
-      animation-mixer>
+      return `
+    <a-entity gps-entity-place="latitude: ${p.lat}; longitude: ${p.lng};">
+      <a-box color="#FF0000" opacity="0.8" scale="0.5 0.5 0.5" position="0 ${p.height + 1} 0"></a-box>
+      <a-entity
+        gltf-model="url(${modelName})"
+        position="0 ${p.height} 0"
+        scale="2 2 2"
+        animation-mixer>
+      </a-entity>
     </a-entity>`;
     }).join('\n');
 
@@ -750,16 +757,26 @@
   <style>
     * { margin: 0; padding: 0; }
     body { overflow: hidden; background: black; }
-    #info {
-      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
-      background: rgba(0,0,0,0.55); color: white; padding: 10px 20px;
-      border-radius: 20px; font-family: sans-serif; font-size: 0.8rem;
-      pointer-events: none; text-align: center; z-index: 999;
+    #hud {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: rgba(0,0,0,0.65);
+      color: white; padding: 12px 16px;
+      font-family: monospace; font-size: 0.75rem;
+      pointer-events: none; z-index: 999;
+      display: flex; flex-direction: column; gap: 4px;
     }
+    #hud .title { font-size: 0.85rem; font-weight: bold; font-family: sans-serif; margin-bottom: 2px; }
+    #status-gps { color: #facc15; }
+    #status-gps.ok { color: #4ade80; }
   </style>
 </head>
 <body>
-  <div id="info">${projectName} — ${puntos.length} punto${puntos.length > 1 ? 's' : ''}</div>
+  <div id="hud">
+    <div class="title">${projectName}</div>
+    <div id="status-gps">GPS: buscando señal...</div>
+    <div id="status-dist"></div>
+  </div>
+
   <a-scene
     vr-mode-ui="enabled: false"
     arjs="sourceType: webcam; debugUIEnabled: false; trackingMethod: best;"
@@ -770,6 +787,32 @@
 ${entities}
 
   </a-scene>
+
+  <script>
+    const PUNTOS = ${puntosJSON};
+
+    function distancia(lat1, lon1, lat2, lon2) {
+      const R = 6371000;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    window.addEventListener('gps-camera-update-position', e => {
+      const { latitude: lat, longitude: lng } = e.detail.position;
+      const gpsEl = document.getElementById('status-gps');
+      gpsEl.textContent = 'GPS: ' + lat.toFixed(6) + ', ' + lng.toFixed(6);
+      gpsEl.classList.add('ok');
+
+      const distEl = document.getElementById('status-dist');
+      const textos = PUNTOS.map((p, i) => {
+        const d = distancia(lat, lng, p.lat, p.lng);
+        return 'Punto ' + (i+1) + ': ' + (d < 1000 ? Math.round(d) + 'm' : (d/1000).toFixed(1) + 'km');
+      });
+      distEl.textContent = textos.join('  |  ');
+    });
+  <\/script>
 </body>
 </html>`);
   }
