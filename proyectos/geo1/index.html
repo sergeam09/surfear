@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>geo1</title>
+  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v6.1.1/dist/aframe-extras.min.js"></script>
+  <script src="https://unpkg.com/@ar-js-org/ar.js/aframe/build/aframe-ar.js"></script>
+  <style>
+    * { margin: 0; padding: 0; }
+    body { overflow: hidden; background: black; }
+    #hud {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: rgba(0,0,0,0.65);
+      color: white; padding: 12px 16px;
+      font-family: monospace; font-size: 0.75rem;
+      pointer-events: none; z-index: 999;
+      display: flex; flex-direction: column; gap: 4px;
+    }
+    #hud .title { font-size: 0.85rem; font-weight: bold; font-family: sans-serif; margin-bottom: 2px; }
+    #status-gps { color: #facc15; }
+    #status-gps.ok { color: #4ade80; }
+  </style>
+</head>
+<body>
+  <div id="hud">
+    <div class="title">geo1</div>
+    <div id="status-gps">GPS: buscando señal...</div>
+    <div id="status-dist"></div>
+  </div>
+
+  <a-scene
+    vr-mode-ui="enabled: false"
+    arjs="sourceType: webcam; debugUIEnabled: false; trackingMethod: best;"
+    renderer="logarithmicDepthBuffer: true; precision: medium;">
+
+    <a-camera gps-camera rotation-reader></a-camera>
+
+
+    <a-entity gps-entity-place="latitude: 19.517275762571174; longitude: -96.87052801251413;">
+      <a-box color="#FF0000" opacity="0.8" scale="0.5 0.5 0.5" position="0 1.5 0"></a-box>
+      <a-entity
+        gltf-model="url(felino.glb)"
+        position="0 0.5 0"
+        scale="2 2 2"
+        animation-mixer>
+      </a-entity>
+    </a-entity>
+
+  </a-scene>
+
+  <script>
+    const PUNTOS = [{"lat":19.517275762571174,"lng":-96.87052801251413,"height":0.5,"model":"felino.glb"}];
+
+    function distancia(lat1, lon1, lat2, lon2) {
+      const R = 6371000;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    window.addEventListener('gps-camera-update-position', e => {
+      const { latitude: lat, longitude: lng } = e.detail.position;
+      const gpsEl = document.getElementById('status-gps');
+      gpsEl.textContent = 'GPS: ' + lat.toFixed(6) + ', ' + lng.toFixed(6);
+      gpsEl.classList.add('ok');
+
+      const distEl = document.getElementById('status-dist');
+      const textos = PUNTOS.map((p, i) => {
+        const d = distancia(lat, lng, p.lat, p.lng);
+        return 'Punto ' + (i+1) + ': ' + (d < 1000 ? Math.round(d) + 'm' : (d/1000).toFixed(1) + 'km');
+      });
+      distEl.textContent = textos.join('  |  ');
+    });
+  </script>
+</body>
+</html>
