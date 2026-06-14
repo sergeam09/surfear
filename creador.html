@@ -878,15 +878,28 @@ ${entities}
       panel.appendChild(card);
     });
 
-    // GPS
-    window.addEventListener('gps-camera-update-position', e => {
-      userLat = e.detail.position.latitude;
-      userLng = e.detail.position.longitude;
-      const el = document.getElementById('gps-status');
-      el.textContent = 'GPS activo — ' + userLat.toFixed(5) + ', ' + userLng.toFixed(5);
-      el.classList.add('ok');
-      actualizarIndicadores();
-    });
+    // GPS nativo — independiente de AR.js
+    if (navigator.geolocation) {
+      navigator.geolocation.watchPosition(
+        pos => {
+          userLat = pos.coords.latitude;
+          userLng = pos.coords.longitude;
+          const el = document.getElementById('gps-status');
+          el.textContent = 'GPS activo — ' + userLat.toFixed(5) + ', ' + userLng.toFixed(5);
+          el.classList.add('ok');
+          actualizarIndicadores();
+        },
+        err => {
+          const el = document.getElementById('gps-status');
+          const msgs = { 1: 'Permiso GPS denegado', 2: 'GPS no disponible', 3: 'Tiempo de espera GPS agotado' };
+          el.textContent = msgs[err.code] || 'Error GPS';
+          el.style.color = '#f87171';
+        },
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+      );
+    } else {
+      document.getElementById('gps-status').textContent = 'GPS no soportado en este dispositivo';
+    }
 
     // Brújula
     window.addEventListener('deviceorientationabsolute', e => {
