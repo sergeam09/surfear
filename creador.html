@@ -104,19 +104,24 @@
       text-align: center;
       cursor: pointer;
       transition: border-color 0.2s, background 0.2s;
-      position: relative;
+      user-select: none;
     }
     .file-drop:hover { border-color: rgba(255,255,255,0.35); background: rgba(255,255,255,0.02); }
-    .file-drop input[type="file"] {
-      position: absolute;
-      inset: 0;
-      opacity: 0;
+    .file-drop.dragover { border-color: white; background: rgba(255,255,255,0.06); }
+    .file-drop .label { font-size: 0.82rem; opacity: 0.5; pointer-events: none; }
+    .file-drop .filename { font-size: 0.82rem; color: #4ade80; margin-top: 4px; font-weight: 500; pointer-events: none; }
+    .file-drop .btn-select {
+      display: inline-block;
+      margin-top: 8px;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: white;
+      border-radius: 6px;
+      padding: 5px 14px;
+      font-size: 0.78rem;
       cursor: pointer;
-      width: 100%;
-      height: 100%;
     }
-    .file-drop .label { font-size: 0.82rem; opacity: 0.5; }
-    .file-drop .filename { font-size: 0.82rem; color: #4ade80; margin-top: 4px; font-weight: 500; }
+    .file-drop .btn-select:hover { background: rgba(255,255,255,0.18); }
 
     .row { display: flex; gap: 12px; }
     .row > div { flex: 1; }
@@ -358,10 +363,11 @@
     <div class="world-section show" id="world-section">
       <div>
         <label>Archivo GLB</label>
-        <div class="file-drop">
-          <input type="file" id="file-glb" accept=".glb" onchange="onFileSelect('glb', this)">
-          <div class="label">Arrastra o selecciona</div>
+        <div class="file-drop" id="drop-world" onclick="triggerFile('file-glb-input')">
+          <div class="label">Arrastra el archivo aqui</div>
           <div class="filename" id="name-glb"></div>
+          <span class="btn-select" onclick="event.stopPropagation(); triggerFile('file-glb-input')">Seleccionar archivo</span>
+          <input type="file" id="file-glb-input" accept=".glb" style="display:none" onchange="onFileInputChange('glb', this)">
         </div>
       </div>
     </div>
@@ -373,7 +379,12 @@
       <div>
         <label>Modelos GLB disponibles</label>
         <div id="modelos-pool" style="display:flex;flex-direction:column;gap:8px;"></div>
-        <button class="btn-location" style="margin-top:8px;" onclick="agregarModelo()">+ Agregar modelo</button>
+        <div class="file-drop" id="drop-geo-modelo" onclick="triggerFile('file-geo-input')">
+        <div class="label">Arrastra el GLB aqui</div>
+        <div class="filename" id="name-geo-modelo"></div>
+        <span class="btn-select" onclick="event.stopPropagation(); triggerFile('file-geo-input')">Seleccionar archivo</span>
+        <input type="file" id="file-geo-input" accept=".glb" style="display:none" onchange="agregarModeloDesdeInput(this)">
+      </div>
       </div>
 
       <!-- Mapa -->
@@ -425,6 +436,7 @@
   const GITHUB_BRANCH = "main";
 
   let tipoActual = 'world';
+  let worldFile = null;
   let map = null;
   let geoModelos = [];   // {file, name}
   let geoPuntos = [];    // {lat, lng, height, modeloIdx, marker, id}
@@ -458,20 +470,60 @@
     }
   }
 
+  // ── Drag & Drop global ────────────────────────────────────
+  function triggerFile(id) {
+    document.getElementById(id).click();
+  }
+
+  function setupDrop(dropId, onFile) {
+    const el = document.getElementById(dropId);
+    if (!el) return;
+    el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('dragover'); });
+    el.addEventListener('dragleave', () => el.classList.remove('dragover'));
+    el.addEventListener('drop', e => {
+      e.preventDefault();
+      el.classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file) onFile(file);
+    });
+  }
+
+  window.addEventListener('DOMContentLoaded', () => {
+    const saved = localStorage.getItem('gh_token');
+    if (saved) document.getElementById('gh-token').value = saved;
+
+    // Drop zone world tracking
+    setupDrop('drop-world', file => {
+      worldFile = file;
+      document.getElementById('name-glb').textContent = file.name;
+    });
+
+    // Drop zone geo modelo
+    setupDrop('drop-geo-modelo', file => agregarModeloDesdeFile(file));
+  });
+
+  function onFileInputChange(type, input) {
+    const file = input.files[0];
+    if (!file) return;
+    if (type === 'glb') {
+      worldFile = file;
+      document.getElementById('name-glb').textContent = file.name;
+    }
+  }
+
   // ── Modelos pool ──────────────────────────────────────────
-  function agregarModelo() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.glb';
-    input.onchange = (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      const idx = geoModelos.length;
-      geoModelos.push({ file, name: file.name });
-      renderModelosPool();
-      renderPuntoSelects();
-    };
-    input.click();
+  function agregarModeloDesdeInput(input) {
+    const file = input.files[0];
+    if (file) agregarModeloDesdeFile(file);
+    input.value = '';
+  }
+
+  function agregarModeloDesdeFile(file) {
+    if (!file.name.endsWith('.glb')) { showError('Solo se aceptan archivos GLB.'); return; }
+    geoModelos.push({ file, name: file.name });
+    document.getElementById('name-geo-modelo').textContent = `${geoModelos.length} modelo(s) agregado(s)`;
+    renderModelosPool();
+    renderPuntoSelects();
   }
 
   function renderModelosPool() {
@@ -739,24 +791,16 @@ ${entities}
       const folder = `proyectos/${projectName}`;
 
       if (tipoActual === 'world') {
-        const glbFile = document.getElementById('file-glb').files[0];
-        const usdzFile = document.getElementById('file-usdz').files[0];
-        if (!glbFile) return showError('Selecciona el archivo GLB.');
+        if (!worldFile) return showError('Selecciona el archivo GLB.');
 
-        setProgress(15, 'Preparando archivos...');
-        const glbB64 = await fileToBase64(glbFile);
+        setProgress(15, 'Preparando archivo...');
+        const glbB64 = await fileToBase64(worldFile);
 
-        setProgress(35, 'Subiendo GLB...');
-        await uploadToGitHub(`${folder}/${glbFile.name}`, glbB64, token);
-
-        if (usdzFile) {
-          setProgress(60, 'Subiendo USDZ...');
-          const usdzB64 = await fileToBase64(usdzFile);
-          await uploadToGitHub(`${folder}/${usdzFile.name}`, usdzB64, token);
-        }
+        setProgress(50, 'Subiendo GLB...');
+        await uploadToGitHub(`${folder}/${worldFile.name}`, glbB64, token);
 
         setProgress(80, 'Generando pagina AR...');
-        const pageHTML = generateWorldHTML(glbFile.name, projectName);
+        const pageHTML = generateWorldHTML(worldFile.name, projectName);
         await uploadToGitHub(`${folder}/index.html`, pageHTML, token);
 
       } else {
@@ -825,11 +869,9 @@ ${entities}
 
   function resetForm() {
     document.getElementById('project-name').value = '';
-    document.getElementById('file-glb').value = '';
-    document.getElementById('file-usdz').value = '';
-
     document.getElementById('name-glb').textContent = '';
-    document.getElementById('name-usdz').textContent = '';
+    document.getElementById('name-geo-modelo').textContent = '';
+    worldFile = null;
     document.getElementById('progress').classList.remove('show');
     document.getElementById('result').classList.remove('show');
     document.getElementById('btn-publish').disabled = false;
