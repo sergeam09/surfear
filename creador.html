@@ -930,11 +930,33 @@
     <div id="gps-wait-acc">Precisión: —</div>
   </div>
 
+  <script>
+    // Suavizado de rotación de cámara — reduce la vibración del giroscopio
+    AFRAME.registerComponent('smooth-camera', {
+      init() {
+        this.smoothQ = new THREE.Quaternion();
+        this.firstFrame = true;
+      },
+      tick() {
+        const obj = this.el.object3D;
+        if (this.firstFrame) {
+          this.smoothQ.copy(obj.quaternion);
+          this.firstFrame = false;
+          return;
+        }
+        // Interpolación suave: 85% valor anterior + 15% nuevo valor → amortigua jitter
+        this.smoothQ.slerp(obj.quaternion, 0.15);
+        obj.quaternion.copy(this.smoothQ);
+      }
+    });
+  <\/script>
+
   <a-scene
     vr-mode-ui="enabled: false"
     arjs="sourceType: webcam; debugUIEnabled: false; trackingMethod: best;"
     renderer="logarithmicDepthBuffer: true; precision: medium;">
-    <a-camera gps-camera rotation-reader></a-camera>
+    <!-- minDistance: 3 → el mundo GPS solo se reposiciona si el usuario se mueve >3m, elimina micro-saltos -->
+    <a-camera gps-camera="minDistance: 3;" rotation-reader smooth-camera></a-camera>
 ${entities}
   </a-scene>
 
