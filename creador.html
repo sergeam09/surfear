@@ -825,12 +825,20 @@
       background: rgba(74,222,128,0.08);
     }
 
-    /* Brújula circular */
-    #compass-wrap {
-      flex-shrink: 0; width: 64px; height: 64px;
-      position: relative;
+    /* Flecha en perspectiva */
+    #arrow-wrap {
+      flex-shrink: 0; width: 64px; height: 76px;
+      display: flex; align-items: flex-end; justify-content: center;
+      perspective: 180px; perspective-origin: center 85%;
     }
-    #compass-svg { width: 64px; height: 64px; }
+    #arrow-3d {
+      width: 46px; height: 60px;
+      transition: transform 0.28s ease-out;
+      transform-origin: center bottom;
+      transform: rotateX(52deg) rotateZ(0deg);
+      filter: drop-shadow(0 6px 12px rgba(0,0,0,0.7));
+    }
+    #nav-card.cerca #arrow-wrap { opacity: 0; }
 
     /* Info central */
     #nav-info { flex: 1; min-width: 0; }
@@ -893,24 +901,23 @@
   <div id="nav-panel">
     <div id="dots"></div>
     <div id="nav-card">
-      <div id="compass-wrap">
-        <svg id="compass-svg" viewBox="0 0 64 64" fill="none">
-          <!-- Anillo exterior -->
-          <circle cx="32" cy="32" r="29" stroke="rgba(255,255,255,0.18)" stroke-width="1.5"/>
-          <!-- Marcadores cardinales -->
-          <text x="32" y="9" text-anchor="middle" fill="white" font-size="8" font-weight="700" opacity="0.9">N</text>
-          <text x="32" y="61" text-anchor="middle" fill="rgba(255,255,255,0.35)" font-size="7">S</text>
-          <text x="59" y="35" text-anchor="middle" fill="rgba(255,255,255,0.35)" font-size="7">E</text>
-          <text x="5" y="35" text-anchor="middle" fill="rgba(255,255,255,0.35)" font-size="7">O</text>
-          <!-- Cruz fina -->
-          <line x1="32" y1="14" x2="32" y2="50" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
-          <line x1="14" y1="32" x2="50" y2="32" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
-          <!-- Punto del usuario en el centro -->
-          <circle cx="32" cy="32" r="3" fill="white" opacity="0.6"/>
-          <!-- Punto de destino — se mueve en el anillo -->
-          <circle id="compass-dot" cx="32" cy="5" r="5.5" fill="white"/>
-          <!-- Línea desde centro al punto -->
-          <line id="compass-line" x1="32" y1="32" x2="32" y2="7.5" stroke="white" stroke-width="1.5" opacity="0.5"/>
+      <div id="arrow-wrap">
+        <!-- Flecha en perspectiva: apunta hacia donde hay que caminar.
+             Si apunta arriba = sigue recto. Gira izq/der = gira en esa dirección. -->
+        <svg id="arrow-3d" viewBox="0 0 46 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Sombra interior para dar volumen -->
+          <defs>
+            <linearGradient id="arrowGrad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="rgba(255,255,255,0.6)"/>
+              <stop offset="50%" stop-color="white"/>
+              <stop offset="100%" stop-color="rgba(255,255,255,0.6)"/>
+            </linearGradient>
+          </defs>
+          <!-- Cuerpo de la flecha -->
+          <polygon points="23,0 46,24 30,24 30,60 16,60 16,24 0,24"
+                   fill="url(#arrowGrad)" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+          <!-- Línea central para sensación de profundidad -->
+          <line x1="23" y1="2" x2="23" y2="58" stroke="rgba(255,255,255,0.25)" stroke-width="1"/>
         </svg>
       </div>
 
@@ -1037,40 +1044,26 @@ ${entities}
         card.classList.add('cerca');
         distEl.classList.add('cerca');
         hintEl.textContent = d < 5 ? 'Estás aquí — gira lentamente' : 'Muy cerca — gira despacio';
-        // Ocultar brújula y mostrar botón "No lo veo"
-        document.getElementById('compass-dot').setAttribute('opacity','0');
-        document.getElementById('compass-line').setAttribute('opacity','0');
+        // Ocultar flecha y mostrar botón "No lo veo"
         if (!modelosFijados.has(puntoActivo)) btnCol.classList.add('visible');
       } else {
         card.classList.remove('cerca');
         distEl.classList.remove('cerca');
-        hintEl.textContent = 'Camina hacia el punto en la brújula';
-        document.getElementById('compass-dot').setAttribute('opacity','1');
-        document.getElementById('compass-line').setAttribute('opacity','0.5');
+        hintEl.textContent = 'Camina en la dirección de la flecha';
         btnCol.classList.remove('visible');
-        actualizarBrujula();
+        actualizarFlecha();
       }
     }
 
-    /* ── Brújula: mueve el dot en el anillo ── */
-    function actualizarBrujula() {
+    /* ── Flecha en perspectiva ── */
+    function actualizarFlecha() {
       if (userLat === null) return;
       const p = PUNTOS[puntoActivo];
       const b = bearing(userLat, userLng, p.lat, p.lng);
-      const rel = (b - userHeading + 360) % 360;
-      const rad = rel * Math.PI / 180;
-      const r = 26.5; // radio del anillo
-      const cx = 32 + r * Math.sin(rad);
-      const cy = 32 - r * Math.cos(rad);
-      const dot = document.getElementById('compass-dot');
-      const line = document.getElementById('compass-line');
-      dot.setAttribute('cx', cx.toFixed(1));
-      dot.setAttribute('cy', cy.toFixed(1));
-      // línea desde el centro al punto
-      const lx = 32 + (r-6) * Math.sin(rad);
-      const ly = 32 - (r-6) * Math.cos(rad);
-      line.setAttribute('x2', lx.toFixed(1));
-      line.setAttribute('y2', ly.toFixed(1));
+      // rel = 0 → apunta al frente (arriba en pantalla), 90 → gira derecha, -90 → gira izquierda
+      const rel = (b - userHeading + 360 + 180) % 360 - 180; // rango -180..180
+      const arrow = document.getElementById('arrow-3d');
+      if (arrow) arrow.style.transform = 'rotateX(52deg) rotateZ(' + rel + 'deg)';
     }
 
     /* ── GPS ── */
@@ -1117,9 +1110,9 @@ ${entities}
     function onOrientation(heading) {
       addHeading(heading);
       const now = Date.now();
-      if (now - lastHeadingUpdate > 150) { // max 6 actualizaciones/seg
+      if (now - lastHeadingUpdate > 150) {
         lastHeadingUpdate = now;
-        actualizarBrujula();
+        actualizarFlecha();
       }
     }
     window.addEventListener('deviceorientationabsolute', e => {
