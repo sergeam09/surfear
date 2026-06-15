@@ -759,6 +759,7 @@
       const modelName = modelos[p.modeloIdx].name;
       return `
     <a-entity
+      id="geo-entity-${i}"
       gps-entity-place="latitude: ${p.lat}; longitude: ${p.lng};"
       gltf-model="url(${modelName})"
       position="0 ${p.height} 0"
@@ -778,85 +779,155 @@
   <script src="https://unpkg.com/@ar-js-org/ar.js/aframe/build/aframe-ar.js"><\/script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { overflow: hidden; background: black; font-family: sans-serif; }
+    body { overflow: hidden; background: black; font-family: -apple-system, sans-serif; }
 
     /* HUD superior */
     #hud-top {
       position: fixed; top: 0; left: 0; right: 0;
-      padding: 12px 16px;
-      background: linear-gradient(to bottom, rgba(0,0,0,0.7), transparent);
+      padding: 10px 16px;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.65), transparent);
       color: white; z-index: 999; pointer-events: none;
     }
-    #hud-top .title { font-size: 1rem; font-weight: 600; }
-    #hud-top .gps-status { font-size: 0.72rem; opacity: 0.6; margin-top: 2px; color: #facc15; }
-    #hud-top .gps-status.ok { color: #4ade80; }
+    #hud-top .title { font-size: 0.95rem; font-weight: 600; }
+    #gps-status { font-size: 0.68rem; opacity: 0.55; margin-top: 2px; color: #facc15; }
+    #gps-status.ok { color: #4ade80; }
 
-    /* Panel de puntos inferior */
-    #puntos-panel {
+    /* Panel inferior — solo una tarjeta visible */
+    #nav-panel {
       position: fixed; bottom: 0; left: 0; right: 0;
-      padding: 12px 16px 24px;
-      background: linear-gradient(to top, rgba(0,0,0,0.85), transparent);
-      z-index: 999; pointer-events: none;
-      display: flex; flex-direction: column; gap: 8px;
+      padding: 0 14px 28px;
+      background: linear-gradient(to top, rgba(0,0,0,0.9) 60%, transparent);
+      z-index: 999;
     }
 
-    /* Tarjeta de cada punto */
-    .punto-indicator {
-      display: flex; align-items: center; gap: 12px;
-      background: rgba(255,255,255,0.08);
-      border: 1px solid rgba(255,255,255,0.15);
-      border-radius: 12px; padding: 10px 14px;
-      color: white; transition: border-color 0.3s;
+    /* Paginación: puntos clickeables */
+    #dots {
+      display: flex; justify-content: center; gap: 8px;
+      padding: 10px 0 8px;
     }
-    .punto-indicator.cerca { border-color: #4ade80; background: rgba(74,222,128,0.1); }
+    .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: rgba(255,255,255,0.3); cursor: pointer;
+      transition: background 0.2s, transform 0.2s;
+    }
+    .dot.active { background: white; transform: scale(1.3); }
 
-    /* Flecha direccional */
-    .flecha-wrap {
-      width: 44px; height: 44px; flex-shrink: 0;
-      display: flex; align-items: center; justify-content: center;
+    /* Tarjeta única de navegación */
+    #nav-card {
+      display: flex; align-items: center; gap: 14px;
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 16px; padding: 12px 14px;
+      color: white; transition: border-color 0.4s, background 0.4s;
     }
-    .flecha {
-      transition: transform 0.3s ease;
-      display: block;
+    #nav-card.cerca {
+      border-color: #4ade80;
+      background: rgba(74,222,128,0.08);
     }
-    .punto-indicator.cerca .flecha .arrow-head { fill: #4ade80; }
-    .punto-indicator.cerca .flecha .arrow-stem { fill: #4ade80; }
 
-    .punto-info { flex: 1; }
-    .punto-nombre { font-size: 0.82rem; font-weight: 600; }
-    .punto-dist {
-      font-size: 1.1rem; font-weight: 700; margin-top: 1px;
-      font-variant-numeric: tabular-nums;
+    /* Brújula circular */
+    #compass-wrap {
+      flex-shrink: 0; width: 64px; height: 64px;
+      position: relative;
     }
-    .punto-dist.cerca { color: #4ade80; }
-    .punto-hint { font-size: 0.7rem; opacity: 0.5; margin-top: 1px; }
+    #compass-svg { width: 64px; height: 64px; }
 
-    /* Indicador central cuando estás muy cerca */
-    #cerca-alert {
-      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-      background: rgba(74,222,128,0.9); color: #111;
-      padding: 12px 24px; border-radius: 20px;
-      font-weight: 700; font-size: 1rem;
-      z-index: 1000; display: none;
-      animation: pulse 1s infinite;
+    /* Info central */
+    #nav-info { flex: 1; min-width: 0; }
+    #nav-nombre {
+      font-size: 0.8rem; font-weight: 600;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      opacity: 0.75;
     }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
+    #nav-dist {
+      font-size: 2rem; font-weight: 700; line-height: 1.1;
+      font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+    }
+    #nav-dist.cerca { color: #4ade80; }
+    #nav-hint { font-size: 0.72rem; opacity: 0.45; margin-top: 2px; }
+
+    /* Botón "colocar aquí" — aparece cuando estás cerca y el modelo no se ve */
+    #btn-colocar {
+      display: none;
+      background: white; color: #111;
+      border: none; border-radius: 10px;
+      padding: 10px 12px; font-size: 0.75rem; font-weight: 700;
+      cursor: pointer; white-space: nowrap; flex-shrink: 0;
+      line-height: 1.2;
+    }
+    #btn-colocar.visible { display: block; }
+
+    /* Toast de confirmación */
+    #toast {
+      position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
+      background: rgba(74,222,128,0.92); color: #111;
+      padding: 8px 20px; border-radius: 20px;
+      font-size: 0.82rem; font-weight: 700;
+      z-index: 1001; opacity: 0; transition: opacity 0.3s;
+      pointer-events: none; white-space: nowrap;
+    }
+    #toast.show { opacity: 1; }
+
+    /* Pantalla de calibración GPS */
+    #gps-wait {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.88);
+      z-index: 2000; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      color: white; gap: 14px;
+    }
+    #gps-wait h2 { font-size: 1rem; font-weight: 600; }
+    #gps-wait p { font-size: 0.8rem; opacity: 0.55; text-align: center; padding: 0 32px; line-height: 1.5; }
+    #gps-wait-acc { font-size: 0.8rem; color: #facc15; }
   </style>
 </head>
 <body>
 
   <div id="hud-top">
     <div class="title">${projectName}</div>
-    <div class="gps-status" id="gps-status">Buscando señal GPS...</div>
+    <div id="gps-status">Buscando señal GPS...</div>
   </div>
 
-  <div id="puntos-panel"></div>
-  <div id="cerca-alert">Mira a tu alrededor</div>
+  <div id="toast">Modelo colocado frente a ti</div>
 
-  <div id="gps-wait" style="position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:2000;display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;font-family:sans-serif;gap:16px;">
-    <div style="font-size:1rem;font-weight:600;">Calibrando GPS</div>
-    <div id="gps-wait-msg" style="font-size:0.82rem;opacity:0.6;text-align:center;padding:0 32px;">Esperando señal estable...<br>Sal a un espacio abierto si estás en interiores.</div>
-    <div id="gps-wait-acc" style="font-size:0.78rem;color:#facc15;">Precisión: —</div>
+  <!-- Panel de navegación inferior: 1 punto a la vez -->
+  <div id="nav-panel">
+    <div id="dots"></div>
+    <div id="nav-card">
+      <div id="compass-wrap">
+        <svg id="compass-svg" viewBox="0 0 64 64" fill="none">
+          <!-- Anillo exterior -->
+          <circle cx="32" cy="32" r="29" stroke="rgba(255,255,255,0.18)" stroke-width="1.5"/>
+          <!-- Marcadores cardinales -->
+          <text x="32" y="9" text-anchor="middle" fill="white" font-size="8" font-weight="700" opacity="0.9">N</text>
+          <text x="32" y="61" text-anchor="middle" fill="rgba(255,255,255,0.35)" font-size="7">S</text>
+          <text x="59" y="35" text-anchor="middle" fill="rgba(255,255,255,0.35)" font-size="7">E</text>
+          <text x="5" y="35" text-anchor="middle" fill="rgba(255,255,255,0.35)" font-size="7">O</text>
+          <!-- Cruz fina -->
+          <line x1="32" y1="14" x2="32" y2="50" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+          <line x1="14" y1="32" x2="50" y2="32" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+          <!-- Punto del usuario en el centro -->
+          <circle cx="32" cy="32" r="3" fill="white" opacity="0.6"/>
+          <!-- Punto de destino — se mueve en el anillo -->
+          <circle id="compass-dot" cx="32" cy="5" r="5.5" fill="white"/>
+          <!-- Línea desde centro al punto -->
+          <line id="compass-line" x1="32" y1="32" x2="32" y2="7.5" stroke="white" stroke-width="1.5" opacity="0.5"/>
+        </svg>
+      </div>
+
+      <div id="nav-info">
+        <div id="nav-nombre">—</div>
+        <div id="nav-dist">—</div>
+        <div id="nav-hint">Calculando...</div>
+      </div>
+
+      <button id="btn-colocar" onclick="colocarFrenteAMi()">No lo<br>veo</button>
+    </div>
+  </div>
+
+  <div id="gps-wait">
+    <h2>Calibrando GPS</h2>
+    <p>Esperando señal estable...<br>Sal a un espacio abierto si estás en interiores.</p>
+    <div id="gps-wait-acc">Precisión: —</div>
   </div>
 
   <a-scene
@@ -869,132 +940,204 @@ ${entities}
 
   <script>
     const PUNTOS = ${puntosJSON};
-    let userLat = null, userLng = null, userHeading = 0;
+    let userLat = null, userLng = null;
+    let userHeading = 0;
+    let headingHistory = [];
+    let puntoActivo = 0;
+    let distancias = PUNTOS.map(() => Infinity);
+    let modelosFijados = new Set();
 
+    /* ── Utilidades geo ── */
     function distM(lat1, lon1, lat2, lon2) {
       const R = 6371000, dLat = (lat2-lat1)*Math.PI/180, dLon = (lon2-lon1)*Math.PI/180;
       const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
       return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     }
-
     function bearing(lat1, lon1, lat2, lon2) {
       const dLon = (lon2-lon1)*Math.PI/180;
       const y = Math.sin(dLon)*Math.cos(lat2*Math.PI/180);
       const x = Math.cos(lat1*Math.PI/180)*Math.sin(lat2*Math.PI/180) - Math.sin(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.cos(dLon);
       return (Math.atan2(y, x)*180/Math.PI + 360) % 360;
     }
-
     function fmtDist(d) {
       return d < 1000 ? Math.round(d) + ' m' : (d/1000).toFixed(1) + ' km';
     }
 
-    // Crear tarjetas
-    const panel = document.getElementById('puntos-panel');
-    PUNTOS.forEach((p, i) => {
-      const card = document.createElement('div');
-      card.className = 'punto-indicator';
-      card.id = 'punto-' + i;
-      card.innerHTML =
-        '<div class="flecha-wrap"><svg id="flecha-' + i + '" class="flecha" width="36" height="44" viewBox="0 0 36 44" fill="none" xmlns="http://www.w3.org/2000/svg"><polygon class="arrow-head" points="18,0 36,20 24,20 24,44 12,44 12,20 0,20" fill="white"/></svg></div>' +
-        '<div class="punto-info">' +
-          '<div class="punto-nombre">Punto ' + (i+1) + (PUNTOS.length > 1 ? ' — ' + p.model.replace('.glb','') : '') + '</div>' +
-          '<div class="punto-dist" id="dist-' + i + '">—</div>' +
-          '<div class="punto-hint" id="hint-' + i + '">Calculando...</div>' +
-        '</div>';
-      panel.appendChild(card);
-    });
+    /* ── Heading suavizado (promedio circular) ── */
+    function addHeading(h) {
+      headingHistory.push(h);
+      if (headingHistory.length > 10) headingHistory.shift();
+      const sins = headingHistory.map(a => Math.sin(a * Math.PI/180));
+      const coss = headingHistory.map(a => Math.cos(a * Math.PI/180));
+      const avgSin = sins.reduce((a,b)=>a+b,0)/sins.length;
+      const avgCos = coss.reduce((a,b)=>a+b,0)/coss.length;
+      userHeading = (Math.atan2(avgSin, avgCos) * 180/Math.PI + 360) % 360;
+    }
 
-    // GPS nativo con espera de señal estable
-    const GPS_PRECISION_OK = 20; // metros — espera hasta tener al menos 20m de precisión
+    /* ── Dots de paginación ── */
+    const dotsEl = document.getElementById('dots');
+    PUNTOS.forEach((_, i) => {
+      const d = document.createElement('div');
+      d.className = 'dot' + (i === 0 ? ' active' : '');
+      d.onclick = () => setPuntoActivo(i);
+      dotsEl.appendChild(d);
+    });
+    if (PUNTOS.length <= 1) dotsEl.style.display = 'none';
+
+    function setPuntoActivo(i) {
+      puntoActivo = i;
+      document.querySelectorAll('.dot').forEach((d,j) => d.classList.toggle('active', j===i));
+      actualizarCard();
+    }
+
+    /* ── Actualizar la tarjeta única ── */
+    function actualizarCard() {
+      const p = PUNTOS[puntoActivo];
+      const d = distancias[puntoActivo];
+      const card = document.getElementById('nav-card');
+      const distEl = document.getElementById('nav-dist');
+      const hintEl = document.getElementById('nav-hint');
+      const btnCol = document.getElementById('btn-colocar');
+
+      document.getElementById('nav-nombre').textContent =
+        'Punto ' + (puntoActivo+1) + (PUNTOS.length > 1 ? '  —  ' + p.model.replace('.glb','') : '');
+
+      if (d === Infinity) {
+        distEl.textContent = '—';
+        hintEl.textContent = 'Calculando...';
+        card.classList.remove('cerca');
+        return;
+      }
+
+      distEl.textContent = fmtDist(d);
+
+      if (d < 15) {
+        card.classList.add('cerca');
+        distEl.classList.add('cerca');
+        hintEl.textContent = d < 5 ? 'Estás aquí — gira lentamente' : 'Muy cerca — gira despacio';
+        // Ocultar brújula y mostrar botón "No lo veo"
+        document.getElementById('compass-dot').setAttribute('opacity','0');
+        document.getElementById('compass-line').setAttribute('opacity','0');
+        if (!modelosFijados.has(puntoActivo)) btnCol.classList.add('visible');
+      } else {
+        card.classList.remove('cerca');
+        distEl.classList.remove('cerca');
+        hintEl.textContent = 'Camina hacia el punto en la brújula';
+        document.getElementById('compass-dot').setAttribute('opacity','1');
+        document.getElementById('compass-line').setAttribute('opacity','0.5');
+        btnCol.classList.remove('visible');
+        actualizarBrujula();
+      }
+    }
+
+    /* ── Brújula: mueve el dot en el anillo ── */
+    function actualizarBrujula() {
+      if (userLat === null) return;
+      const p = PUNTOS[puntoActivo];
+      const b = bearing(userLat, userLng, p.lat, p.lng);
+      const rel = (b - userHeading + 360) % 360;
+      const rad = rel * Math.PI / 180;
+      const r = 26.5; // radio del anillo
+      const cx = 32 + r * Math.sin(rad);
+      const cy = 32 - r * Math.cos(rad);
+      const dot = document.getElementById('compass-dot');
+      const line = document.getElementById('compass-line');
+      dot.setAttribute('cx', cx.toFixed(1));
+      dot.setAttribute('cy', cy.toFixed(1));
+      // línea desde el centro al punto
+      const lx = 32 + (r-6) * Math.sin(rad);
+      const ly = 32 - (r-6) * Math.cos(rad);
+      line.setAttribute('x2', lx.toFixed(1));
+      line.setAttribute('y2', ly.toFixed(1));
+    }
+
+    /* ── GPS ── */
+    const GPS_PRECISION_OK = 25;
     let gpsListo = false;
 
-    if (navigator.geolocation) {
-      navigator.geolocation.watchPosition(
-        pos => {
-          userLat = pos.coords.latitude;
-          userLng = pos.coords.longitude;
-          const acc = Math.round(pos.coords.accuracy);
+    navigator.geolocation && navigator.geolocation.watchPosition(
+      pos => {
+        userLat = pos.coords.latitude;
+        userLng = pos.coords.longitude;
+        const acc = Math.round(pos.coords.accuracy);
 
-          const accEl = document.getElementById('gps-wait-acc');
-          if (accEl) accEl.textContent = 'Precision: ' + acc + 'm';
+        document.getElementById('gps-wait-acc').textContent = 'Precisión: ±' + acc + 'm';
+        const st = document.getElementById('gps-status');
+        st.textContent = '±' + acc + 'm  ·  ' + userLat.toFixed(5) + ', ' + userLng.toFixed(5);
+        st.classList.add('ok');
 
-          const el = document.getElementById('gps-status');
-          el.textContent = 'GPS — ' + userLat.toFixed(5) + ', ' + userLng.toFixed(5) + ' (±' + acc + 'm)';
-          el.classList.add('ok');
+        if (!gpsListo && acc <= GPS_PRECISION_OK) {
+          gpsListo = true;
+          document.getElementById('gps-wait').style.display = 'none';
+        }
 
-          // Ocultar pantalla de espera cuando la precisión es suficiente
-          if (!gpsListo && acc <= GPS_PRECISION_OK) {
-            gpsListo = true;
-            const wait = document.getElementById('gps-wait');
-            if (wait) wait.style.display = 'none';
-          }
+        // Actualizar distancias y auto-seleccionar el más cercano
+        PUNTOS.forEach((p, i) => {
+          distancias[i] = distM(userLat, userLng, p.lat, p.lng);
+        });
+        // Ir al punto más cercano automáticamente
+        const minIdx = distancias.indexOf(Math.min(...distancias));
+        if (minIdx !== puntoActivo) setPuntoActivo(minIdx);
+        else actualizarCard();
+      },
+      err => {
+        const msgs = {1:'Permiso GPS denegado', 2:'GPS no disponible', 3:'Tiempo de espera agotado'};
+        const st = document.getElementById('gps-status');
+        st.textContent = msgs[err.code] || 'Error GPS';
+        st.style.color = '#f87171';
+        document.getElementById('gps-wait-acc').textContent = msgs[err.code] || 'Error GPS';
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
+    );
 
-          actualizarIndicadores();
-        },
-        err => {
-          const el = document.getElementById('gps-status');
-          const msgs = { 1: 'Permiso GPS denegado', 2: 'GPS no disponible', 3: 'Tiempo de espera agotado' };
-          el.textContent = msgs[err.code] || 'Error GPS';
-          el.style.color = '#f87171';
-          const accEl = document.getElementById('gps-wait-acc');
-          if (accEl) accEl.textContent = msgs[err.code] || 'Error GPS';
-        },
-        { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
-      );
-    } else {
-      document.getElementById('gps-status').textContent = 'GPS no soportado';
+    /* ── Brújula con suavizado ── */
+    let lastHeadingUpdate = 0;
+    function onOrientation(heading) {
+      addHeading(heading);
+      const now = Date.now();
+      if (now - lastHeadingUpdate > 150) { // max 6 actualizaciones/seg
+        lastHeadingUpdate = now;
+        actualizarBrujula();
+      }
     }
-
-    // Brújula
     window.addEventListener('deviceorientationabsolute', e => {
-      if (e.alpha !== null) { userHeading = e.alpha; actualizarFlechas(); }
+      if (e.alpha !== null) onOrientation(e.alpha);
     }, true);
     window.addEventListener('deviceorientation', e => {
-      if (e.webkitCompassHeading !== undefined) { userHeading = e.webkitCompassHeading; actualizarFlechas(); }
-      else if (e.alpha !== null) { userHeading = e.alpha; actualizarFlechas(); }
+      if (e.webkitCompassHeading !== undefined) onOrientation(e.webkitCompassHeading);
+      else if (e.alpha !== null) onOrientation(e.alpha);
     }, true);
 
-    function actualizarIndicadores() {
-      if (userLat === null) return;
-      let algunoCerca = false;
-      PUNTOS.forEach((p, i) => {
-        const d = distM(userLat, userLng, p.lat, p.lng);
-        const distEl = document.getElementById('dist-' + i);
-        const hintEl = document.getElementById('hint-' + i);
-        const card = document.getElementById('punto-' + i);
+    /* ── Colocar modelo frente a la cámara (override GPS) ── */
+    function colocarFrenteAMi() {
+      const cam = document.querySelector('a-camera');
+      const entity = document.getElementById('geo-entity-' + puntoActivo);
+      if (!cam || !entity) return;
 
-        distEl.textContent = fmtDist(d);
+      // Obtener dirección de la cámara y posición mundial
+      const camObj = cam.object3D;
+      const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camObj.quaternion);
+      dir.y = 0; // mantener horizontal
+      dir.normalize();
 
-        if (d < 5) {
-          card.classList.add('cerca');
-          distEl.classList.add('cerca');
-          hintEl.textContent = 'Estas aqui — mira a tu alrededor';
-          algunoCerca = true;
-        } else if (d < 20) {
-          card.classList.add('cerca');
-          distEl.classList.add('cerca');
-          hintEl.textContent = 'Muy cerca — gira lentamente';
-        } else {
-          card.classList.remove('cerca');
-          distEl.classList.remove('cerca');
-          hintEl.textContent = 'Camina en la direccion de la flecha';
-        }
-      });
-      document.getElementById('cerca-alert').style.display = algunoCerca ? 'block' : 'none';
-      actualizarFlechas();
+      const pos = camObj.getWorldPosition(new THREE.Vector3());
+      const target = pos.clone().addScaledVector(dir, 4); // 4m al frente
+
+      // Quitar control GPS y posicionar manualmente en coordenadas de escena
+      entity.removeAttribute('gps-entity-place');
+      entity.object3D.position.set(target.x, pos.y - 1.2, target.z);
+      entity.setAttribute('visible', true);
+
+      modelosFijados.add(puntoActivo);
+      document.getElementById('btn-colocar').classList.remove('visible');
+
+      // Toast
+      const toast = document.getElementById('toast');
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2500);
     }
 
-    function actualizarFlechas() {
-      if (userLat === null) return;
-      PUNTOS.forEach((p, i) => {
-        const b = bearing(userLat, userLng, p.lat, p.lng);
-        const rel = (b - userHeading + 360) % 360;
-        const flecha = document.getElementById('flecha-' + i);
-        if (flecha) flecha.style.transform = 'rotate(' + rel + 'deg)';
-      });
-    }
-
-    setInterval(actualizarIndicadores, 2000);
+    setInterval(() => { if (userLat !== null) actualizarCard(); }, 2500);
   <\/script>
 </body>
 </html>`);
