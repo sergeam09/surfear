@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>prueba-casa</title>
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
+  <style>
+    * { margin: 0; padding: 0; }
+    body { overflow: hidden; background: black; }
+    #info {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: rgba(0,0,0,0.6); color: white; padding: 10px 20px;
+      border-radius: 20px; font-family: sans-serif; font-size: 0.8rem;
+      pointer-events: none; text-align: center; z-index: 999;
+    }
+  </style>
+</head>
+<body>
+  <div id="info">prueba-casa — Apunta hacia el lugar marcado</div>
+  <a-scene
+    vr-mode-ui="enabled: false"
+    embedded
+    arjs="sourceType: webcam; videoTexture: true; debugUIEnabled: false; trackingMethod: best;"
+    renderer="logarithmicDepthBuffer: true; precision: medium;">
+
+    <a-camera
+      gps-new-camera="minDistance: 1; maxDistance: 300; simulateAltitude: 0;"
+      rotation-reader>
+    </a-camera>
+
+    <a-entity
+      gps-new-entity-place="latitude: 19.517704; longitude: -96.870346;"
+      gltf-model="url(bola_25cm.glb)"
+      position="0 1 0"
+      scale="1 1 1"
+      animation-mixer="loop: repeat; crossFadeDuration: 0.4"
+      look-at="[gps-new-camera]">
+    </a-entity>
+
+  </a-scene>
+
+  <script>
+    window.addEventListener('gps-camera-update-position', (e) => {
+      const dist = e.detail.position ? Math.round(
+        window.AFRAME.utils.coordinates.distance
+          ? 0
+          : 0
+      ) : '?';
+    });
+  </script>
+</body>
+</html>
