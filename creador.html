@@ -825,20 +825,20 @@
       background: rgba(74,222,128,0.08);
     }
 
-    /* Flecha en perspectiva */
-    #arrow-wrap {
-      flex-shrink: 0; width: 64px; height: 76px;
-      display: flex; align-items: flex-end; justify-content: center;
-      perspective: 180px; perspective-origin: center 85%;
+    /* Anillo de proximidad */
+    #ring-wrap {
+      flex-shrink: 0; width: 64px; height: 64px;
+      position: relative; display: flex; align-items: center; justify-content: center;
     }
-    #arrow-3d {
-      width: 46px; height: 60px;
-      transition: transform 0.28s ease-out;
-      transform-origin: center bottom;
-      transform: rotateX(52deg) rotateZ(0deg);
-      filter: drop-shadow(0 6px 12px rgba(0,0,0,0.7));
+    #ring-svg { width: 64px; height: 64px; transform: rotate(-90deg); }
+    #ring-bg   { fill: none; stroke: rgba(255,255,255,0.1); stroke-width: 5; }
+    #ring-fill { fill: none; stroke-width: 5; stroke-linecap: round;
+                 stroke-dasharray: 163; stroke-dashoffset: 163;
+                 transition: stroke-dashoffset 0.8s ease, stroke 0.8s ease; }
+    #ring-pct  {
+      position: absolute; font-size: 0.68rem; font-weight: 700;
+      color: white; opacity: 0.8; letter-spacing: -0.02em;
     }
-    #nav-card.cerca #arrow-wrap { opacity: 0; }
 
     /* Info central */
     #nav-info { flex: 1; min-width: 0; }
@@ -901,24 +901,12 @@
   <div id="nav-panel">
     <div id="dots"></div>
     <div id="nav-card">
-      <div id="arrow-wrap">
-        <!-- Flecha en perspectiva: apunta hacia donde hay que caminar.
-             Si apunta arriba = sigue recto. Gira izq/der = gira en esa dirección. -->
-        <svg id="arrow-3d" viewBox="0 0 46 60" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <!-- Sombra interior para dar volumen -->
-          <defs>
-            <linearGradient id="arrowGrad" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stop-color="rgba(255,255,255,0.6)"/>
-              <stop offset="50%" stop-color="white"/>
-              <stop offset="100%" stop-color="rgba(255,255,255,0.6)"/>
-            </linearGradient>
-          </defs>
-          <!-- Cuerpo de la flecha -->
-          <polygon points="23,0 46,24 30,24 30,60 16,60 16,24 0,24"
-                   fill="url(#arrowGrad)" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
-          <!-- Línea central para sensación de profundidad -->
-          <line x1="23" y1="2" x2="23" y2="58" stroke="rgba(255,255,255,0.25)" stroke-width="1"/>
+      <div id="ring-wrap">
+        <svg id="ring-svg" viewBox="0 0 64 64">
+          <circle id="ring-bg"   cx="32" cy="32" r="26"/>
+          <circle id="ring-fill" cx="32" cy="32" r="26" stroke="#f87171"/>
         </svg>
+        <span id="ring-pct">—</span>
       </div>
 
       <div id="nav-info">
@@ -970,11 +958,11 @@ ${entities}
   <script>
     const PUNTOS = ${puntosJSON};
     let userLat = null, userLng = null;
-    let userHeading = 0;
-    let headingHistory = [];
     let puntoActivo = 0;
     let distancias = PUNTOS.map(() => Infinity);
+    let prevDistancias = PUNTOS.map(() => Infinity);
     let modelosFijados = new Set();
+    const MAX_DIST_REF = 200; // metros — distancia de referencia para el 0% del anillo
 
     /* ── Utilidades geo ── */
     function distM(lat1, lon1, lat2, lon2) {
@@ -990,17 +978,6 @@ ${entities}
     }
     function fmtDist(d) {
       return d < 1000 ? Math.round(d) + ' m' : (d/1000).toFixed(1) + ' km';
-    }
-
-    /* ── Heading suavizado (promedio circular) ── */
-    function addHeading(h) {
-      headingHistory.push(h);
-      if (headingHistory.length > 10) headingHistory.shift();
-      const sins = headingHistory.map(a => Math.sin(a * Math.PI/180));
-      const coss = headingHistory.map(a => Math.cos(a * Math.PI/180));
-      const avgSin = sins.reduce((a,b)=>a+b,0)/sins.length;
-      const avgCos = coss.reduce((a,b)=>a+b,0)/coss.length;
-      userHeading = (Math.atan2(avgSin, avgCos) * 180/Math.PI + 360) % 360;
     }
 
     /* ── Dots de paginación ── */
@@ -1019,10 +996,11 @@ ${entities}
       actualizarCard();
     }
 
-    /* ── Actualizar la tarjeta única ── */
+    /* ── Actualizar anillo y tarjeta ── */
     function actualizarCard() {
       const p = PUNTOS[puntoActivo];
       const d = distancias[puntoActivo];
+      const prev = prevDistancias[puntoActivo];
       const card = document.getElementById('nav-card');
       const distEl = document.getElementById('nav-dist');
       const hintEl = document.getElementById('nav-hint');
@@ -1035,35 +1013,43 @@ ${entities}
         distEl.textContent = '—';
         hintEl.textContent = 'Calculando...';
         card.classList.remove('cerca');
+        actualizarAnillo(0, '#f87171');
+        document.getElementById('ring-pct').textContent = '—';
         return;
       }
 
       distEl.textContent = fmtDist(d);
 
+      // Anillo: 0% lejos → 100% encima
+      const pct = Math.max(0, Math.min(1, 1 - d / MAX_DIST_REF));
+      const color = d < 10 ? '#4ade80' : d < 40 ? '#facc15' : '#f87171';
+      actualizarAnillo(pct, color);
+      document.getElementById('ring-pct').textContent = Math.round(pct * 100) + '%';
+
+      // Tendencia caliente/frío
+      let trend = '';
+      if (prev !== Infinity && Math.abs(d - prev) > 1.5) {
+        trend = d < prev ? '↑ Acercándote' : '↓ Alejándote';
+      }
+
       if (d < 15) {
         card.classList.add('cerca');
         distEl.classList.add('cerca');
-        hintEl.textContent = d < 5 ? 'Estás aquí — gira lentamente' : 'Muy cerca — gira despacio';
-        // Ocultar flecha y mostrar botón "No lo veo"
+        hintEl.textContent = d < 5 ? 'Estás aquí — mira a tu alrededor' : 'Muy cerca — gira lentamente';
         if (!modelosFijados.has(puntoActivo)) btnCol.classList.add('visible');
       } else {
         card.classList.remove('cerca');
         distEl.classList.remove('cerca');
-        hintEl.textContent = 'Camina en la dirección de la flecha';
+        hintEl.textContent = trend || 'Camina en cualquier dirección y observa si te acercas';
         btnCol.classList.remove('visible');
-        actualizarFlecha();
       }
     }
 
-    /* ── Flecha en perspectiva ── */
-    function actualizarFlecha() {
-      if (userLat === null) return;
-      const p = PUNTOS[puntoActivo];
-      const b = bearing(userLat, userLng, p.lat, p.lng);
-      // rel = 0 → apunta al frente (arriba en pantalla), 90 → gira derecha, -90 → gira izquierda
-      const rel = (b - userHeading + 360 + 180) % 360 - 180; // rango -180..180
-      const arrow = document.getElementById('arrow-3d');
-      if (arrow) arrow.style.transform = 'rotateX(52deg) rotateZ(' + rel + 'deg)';
+    function actualizarAnillo(pct, color) {
+      const circ = 163;
+      const fill = document.getElementById('ring-fill');
+      fill.style.strokeDashoffset = circ - pct * circ;
+      fill.style.stroke = color;
     }
 
     /* ── GPS ── */
@@ -1086,8 +1072,9 @@ ${entities}
           document.getElementById('gps-wait').style.display = 'none';
         }
 
-        // Actualizar distancias y auto-seleccionar el más cercano
+        // Guardar distancias previas y recalcular
         PUNTOS.forEach((p, i) => {
+          prevDistancias[i] = distancias[i] === Infinity ? Infinity : distancias[i];
           distancias[i] = distM(userLat, userLng, p.lat, p.lng);
         });
         // Ir al punto más cercano automáticamente
@@ -1105,43 +1092,17 @@ ${entities}
       { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
     );
 
-    /* ── Brújula con suavizado ── */
-    let lastHeadingUpdate = 0;
-    function onOrientation(heading) {
-      addHeading(heading);
-      const now = Date.now();
-      if (now - lastHeadingUpdate > 150) {
-        lastHeadingUpdate = now;
-        actualizarFlecha();
-      }
-    }
-    window.addEventListener('deviceorientationabsolute', e => {
-      if (e.alpha !== null) onOrientation(e.alpha);
-    }, true);
-    window.addEventListener('deviceorientation', e => {
-      if (e.webkitCompassHeading !== undefined) onOrientation(e.webkitCompassHeading);
-      else if (e.alpha !== null) onOrientation(e.alpha);
-    }, true);
-
-    /* ── Colocar modelo frente a la cámara (override GPS) ── */
+    /* ── Colocar modelo anclado a la cámara (bypass GPS) ── */
     function colocarFrenteAMi() {
       const cam = document.querySelector('a-camera');
       const entity = document.getElementById('geo-entity-' + puntoActivo);
       if (!cam || !entity) return;
 
-      // Obtener dirección de la cámara y posición mundial
-      const camObj = cam.object3D;
-      const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camObj.quaternion);
-      dir.y = 0; // mantener horizontal
-      dir.normalize();
-
-      const pos = camObj.getWorldPosition(new THREE.Vector3());
-      const target = pos.clone().addScaledVector(dir, 4); // 4m al frente
-
-      // Quitar control GPS y posicionar manualmente en coordenadas de escena
+      // Mover entidad como hijo de la cámara, 4m al frente y a altura de objeto
+      entity.parentNode.removeChild(entity);
       entity.removeAttribute('gps-entity-place');
-      entity.object3D.position.set(target.x, pos.y - 1.2, target.z);
-      entity.setAttribute('visible', true);
+      entity.setAttribute('position', '0 -1.4 -4');
+      cam.appendChild(entity);
 
       modelosFijados.add(puntoActivo);
       document.getElementById('btn-colocar').classList.remove('visible');
