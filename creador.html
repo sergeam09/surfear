@@ -625,8 +625,22 @@
       card.className = 'punto-card';
       card.innerHTML = `
         <div class="punto-header">
-          <span>Punto ${p.num} — ${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</span>
+          <span>Punto ${p.num}</span>
           <button class="btn-delete" onclick="eliminarPunto(${p.id})">Eliminar</button>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:4px;">
+          <div style="flex:1;">
+            <label style="font-size:0.7rem;opacity:0.6;display:block;margin-bottom:2px;">Latitud</label>
+            <input type="number" step="0.000001" value="${p.lat.toFixed(6)}"
+              style="width:100%;background:#1a1a1a;border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:6px 8px;color:white;font-size:0.8rem;"
+              onchange="moverPunto(${p.id}, parseFloat(this.value), geoPuntos.find(x=>x.id==${p.id}).lng)">
+          </div>
+          <div style="flex:1;">
+            <label style="font-size:0.7rem;opacity:0.6;display:block;margin-bottom:2px;">Longitud</label>
+            <input type="number" step="0.000001" value="${p.lng.toFixed(6)}"
+              style="width:100%;background:#1a1a1a;border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:6px 8px;color:white;font-size:0.8rem;"
+              onchange="moverPunto(${p.id}, geoPuntos.find(x=>x.id==${p.id}).lat, parseFloat(this.value))">
+          </div>
         </div>
         <div>
           <label>Modelo</label>
@@ -644,6 +658,16 @@
         </div>`;
       list.appendChild(card);
     });
+  }
+
+  function moverPunto(id, lat, lng) {
+    if (isNaN(lat) || isNaN(lng)) return;
+    const p = geoPuntos.find(x => x.id === id);
+    if (!p) return;
+    p.lat = lat;
+    p.lng = lng;
+    p.marker.setLatLng([lat, lng]);
+    map.panTo([lat, lng]);
   }
 
   function usarMiUbicacion() {
