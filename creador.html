@@ -854,16 +854,14 @@
     #nav-dist.cerca { color: #4ade80; }
     #nav-hint { font-size: 0.72rem; opacity: 0.45; margin-top: 2px; }
 
-    /* Botón "colocar aquí" — aparece cuando estás cerca y el modelo no se ve */
+    /* Botón "colocar aquí" — siempre visible una vez el GPS está listo */
     #btn-colocar {
-      display: none;
       background: white; color: #111;
       border: none; border-radius: 10px;
       padding: 10px 12px; font-size: 0.75rem; font-weight: 700;
       cursor: pointer; white-space: nowrap; flex-shrink: 0;
-      line-height: 1.2;
+      line-height: 1.2; display: block;
     }
-    #btn-colocar.visible { display: block; }
 
     /* Toast de confirmación */
     #toast {
@@ -915,7 +913,7 @@
         <div id="nav-hint">Calculando...</div>
       </div>
 
-      <button id="btn-colocar" onclick="colocarFrenteAMi()">No lo<br>veo</button>
+      <button id="btn-colocar" onclick="colocarFrenteAMi()">Poner<br>aquí</button>
     </div>
   </div>
 
@@ -1004,7 +1002,7 @@ ${entities}
       const card = document.getElementById('nav-card');
       const distEl = document.getElementById('nav-dist');
       const hintEl = document.getElementById('nav-hint');
-      const btnCol = document.getElementById('btn-colocar');
+      // btnCol siempre visible — no se usa
 
       document.getElementById('nav-nombre').textContent =
         'Punto ' + (puntoActivo+1) + (PUNTOS.length > 1 ? '  —  ' + p.model.replace('.glb','') : '');
@@ -1035,13 +1033,11 @@ ${entities}
       if (d < 15) {
         card.classList.add('cerca');
         distEl.classList.add('cerca');
-        hintEl.textContent = d < 5 ? 'Estás aquí — mira a tu alrededor' : 'Muy cerca — gira lentamente';
-        if (!modelosFijados.has(puntoActivo)) btnCol.classList.add('visible');
+        hintEl.textContent = d < 5 ? 'Estás aquí — toca "Aquí" si no lo ves' : 'Muy cerca — toca "Aquí" si no ves el modelo';
       } else {
         card.classList.remove('cerca');
         distEl.classList.remove('cerca');
-        hintEl.textContent = trend || 'Camina en cualquier dirección y observa si te acercas';
-        btnCol.classList.remove('visible');
+        hintEl.textContent = trend || 'Camina y observa si el % sube o baja';
       }
     }
 
@@ -1095,17 +1091,26 @@ ${entities}
     /* ── Colocar modelo anclado a la cámara (bypass GPS) ── */
     function colocarFrenteAMi() {
       const cam = document.querySelector('a-camera');
-      const entity = document.getElementById('geo-entity-' + puntoActivo);
-      if (!cam || !entity) return;
+      if (!cam) return;
 
-      // Mover entidad como hijo de la cámara, 4m al frente y a altura de objeto
-      entity.parentNode.removeChild(entity);
-      entity.removeAttribute('gps-entity-place');
-      entity.setAttribute('position', '0 -1.4 -4');
-      cam.appendChild(entity);
+      // Ocultar entidad GPS original (no luchar con AR.js)
+      const gpsEntity = document.getElementById('geo-entity-' + puntoActivo);
+      if (gpsEntity) gpsEntity.setAttribute('visible', false);
+
+      // Eliminar entidad anclada previa si existía
+      const prev = document.getElementById('anclado-' + puntoActivo);
+      if (prev) prev.parentNode.removeChild(prev);
+
+      // Crear entidad nueva como hijo directo de la cámara
+      const el = document.createElement('a-entity');
+      el.id = 'anclado-' + puntoActivo;
+      el.setAttribute('gltf-model', 'url(' + PUNTOS[puntoActivo].model + ')');
+      el.setAttribute('position', '0 -1.5 -4');
+      el.setAttribute('scale', '1 1 1');
+      el.setAttribute('animation-mixer', '');
+      cam.appendChild(el);
 
       modelosFijados.add(puntoActivo);
-      document.getElementById('btn-colocar').classList.remove('visible');
 
       // Toast
       const toast = document.getElementById('toast');
