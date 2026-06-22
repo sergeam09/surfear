@@ -1112,27 +1112,42 @@ ${entities}
       { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
     );
 
-    /* ── Colocar modelo anclado a la cámara (bypass GPS) ── */
+    /* ── Colocar modelo en el mundo a 4m frente a la cámara ── */
     function colocarFrenteAMi() {
+      const scene = document.querySelector('a-scene');
       const cam = document.querySelector('a-camera');
-      if (!cam) return;
+      if (!scene || !cam) return;
 
-      // Ocultar entidad GPS original (no luchar con AR.js)
+      // Ocultar entidad GPS original
       const gpsEntity = document.getElementById('geo-entity-' + puntoActivo);
       if (gpsEntity) gpsEntity.setAttribute('visible', false);
 
-      // Eliminar entidad anclada previa si existía
+      // Eliminar colocación previa del mismo punto
       const prev = document.getElementById('anclado-' + puntoActivo);
       if (prev) prev.parentNode.removeChild(prev);
 
-      // Crear entidad nueva como hijo directo de la cámara
+      // Posición mundial de la cámara
+      const camObj = cam.object3D;
+      const worldPos = new THREE.Vector3();
+      camObj.getWorldPosition(worldPos);
+
+      // Dirección hacia donde apunta la cámara (ignorar inclinación vertical)
+      const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camObj.quaternion);
+      dir.y = 0;
+      dir.normalize();
+
+      // 4 metros al frente, al nivel del suelo
+      const target = worldPos.clone().addScaledVector(dir, 4);
+      target.y = worldPos.y - 1.5;
+
+      // Crear entidad en la ESCENA (no en la cámara) → queda fija en el mundo
       const el = document.createElement('a-entity');
       el.id = 'anclado-' + puntoActivo;
       el.setAttribute('gltf-model', 'url(' + PUNTOS[puntoActivo].model + ')');
-      el.setAttribute('position', '0 -1.5 -4');
+      el.setAttribute('position', target.x + ' ' + target.y + ' ' + target.z);
       el.setAttribute('scale', '1 1 1');
       el.setAttribute('animation-mixer', '');
-      cam.appendChild(el);
+      scene.appendChild(el);
 
       modelosFijados.add(puntoActivo);
 
