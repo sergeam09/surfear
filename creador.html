@@ -142,7 +142,7 @@
       font-size: 0.75rem;
       opacity: 0.35;
       text-align: center;
-      margin-top: -8px;
+      margin-top: 4px;
     }
 
     .coords-display {
@@ -392,11 +392,11 @@
 
       <!-- Buscador de direcciones -->
       <div style="position:relative;margin-bottom:8px;">
-        <div style="display:flex;gap:6px;">
+        <div style="display:flex;flex-wrap:nowrap;align-items:center;gap:6px;">
           <input id="geo-search" type="text" placeholder="Buscar dirección o lugar..."
-            style="flex:1;background:#1a1a1a;border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:8px 12px;color:white;font-size:0.82rem;outline:none;"
+            style="flex:1;min-width:0;background:#1a1a1a;border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:8px 12px;color:white;font-size:0.82rem;outline:none;box-sizing:border-box;"
             onkeydown="if(event.key==='Enter')buscarDireccion()">
-          <button class="btn-small" onclick="buscarDireccion()" style="padding:8px 14px;font-size:0.8rem;">Buscar</button>
+          <button class="btn-small" onclick="buscarDireccion()" style="flex-shrink:0;padding:8px 14px;font-size:0.8rem;">Buscar</button>
         </div>
         <div id="geo-resultados" style="display:none;position:absolute;top:100%;left:0;right:0;margin-top:4px;background:#1e1e1e;border:1px solid rgba(255,255,255,0.15);border-radius:8px;z-index:1000;overflow:hidden;max-height:200px;overflow-y:auto;"></div>
       </div>
